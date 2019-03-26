@@ -19,22 +19,36 @@
 #define BE_QUIC_CALLBACK
 #endif
 
+/// BeQuic Error code defination.
 typedef enum BeQuicErrorCode {
-    kBeQuicErrorCode_Success = 0,               //!< 成功.
-    kBeQuicErrorCode_Invalid_Param,             //!< 非法参数.
-    kBeQuicErrorCode_Invalid_State,             //!< 非法状态.
-    kBeQuicErrorCode_Null_Pointer,              //!< 空指针.
-    kBeQuicErrorCode_Not_Implemented,           //!< 未实现.
-    kBeQuicErrorCode_Timeout,                   //!< 超时.
-    kBeQuicErrorCode_Resolve_Fail,              //!< DNS解析失败.
-    kBeQuicErrorCode_Connect_Fail,              //!< 连接失败.
-    kBeQuicErrorCode_Shakehand_Fail,            //!< 握手失败.
-    kBeQuicErrorCode_Write_Fail,                //!< 写数据失败.
-    kBeQuicErrorCode_Read_Fail,                 //!< 读数据失败.
-    kBeQuicErrorCode_Eof,                       //!< 结束标识.
-    kBeQuicErrorCode_Not_Found,                 //!< 不存在.
-    kBeQuicErrorCode_No_Network,                //!< 无网络
-    kBeQuicErrorCode_Count,                     //!< 错误码总数.
+    kBeQuicErrorCode_Success            = 0,        //!< Success.
+    kBeQuicErrorCode_Invalid_Param      = -1,       //!< Invalid param.
+    kBeQuicErrorCode_Invalid_State      = -2,       //!< Invalid state.
+    kBeQuicErrorCode_Null_Pointer       = -3,       //!< NULL pointer.
+    kBeQuicErrorCode_Not_Implemented    = -4,       //!< Not implemented yet.
+    kBeQuicErrorCode_Timeout            = -5,       //!< Timeout.
+    kBeQuicErrorCode_Resolve_Fail       = -6,       //!< DNS resolve failed.
+    kBeQuicErrorCode_Connect_Fail       = -7,       //!< Connect failed.
+    kBeQuicErrorCode_Shakehand_Fail     = -8,       //!< Handshake failed.
+    kBeQuicErrorCode_Write_Fail         = -9,       //!< Write data failed.
+    kBeQuicErrorCode_Read_Fail          = -10,      //!< Read data failed.
+    kBeQuicErrorCode_Eof                = -11,      //!< End of file.
+    kBeQuicErrorCode_Not_Found          = -12,      //!< Resource not found.
+    kBeQuicErrorCode_No_Network         = -13,      //!< Network unreachable.
+    kBeQuicErrorCode_Fatal_Error        = -14,      //!< Fatal error.
+    kBeQuicErrorCode_Invalid_Url        = -15,      //!< Invalid quic url.
+    kBeQuicErrorCode_Invalid_Method     = -16,      //!< Invalid quic method.
+    kBeQuicErrorCode_Count              = 17        //!< Error code count.
 }BeQuicErrorCode;
+
+/// BeQuic Header struct defination.
+typedef struct BeQuicHeader {
+    char *key;        //!< Key, must be NULL terminated.
+    char *value;      //!< Value, must be NULL terminated.
+} BeQuicHeader;
+
+/// Logging callback.
+typedef bool (*BeQuicLogCallback)(
+    const char* severity, const char* file, int line, const char* msg);
 
 #endif // #ifndef __BE_QUIC_DEFINE_H__
