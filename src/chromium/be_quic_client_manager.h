@@ -25,7 +25,7 @@ public:
 private:
     BeQuicClientManager();
     BeQuicClientManager(const BeQuicClientManager&) = delete;
-	BeQuicClientManager& operator=(const BeQuicClientManager&) = delete;
+    BeQuicClientManager& operator=(const BeQuicClientManager&) = delete;
 
 private:
     static Ptr instance_;
