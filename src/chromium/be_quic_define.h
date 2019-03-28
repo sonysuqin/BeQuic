@@ -38,7 +38,8 @@ typedef enum BeQuicErrorCode {
     kBeQuicErrorCode_Fatal_Error        = -14,      //!< Fatal error.
     kBeQuicErrorCode_Invalid_Url        = -15,      //!< Invalid quic url.
     kBeQuicErrorCode_Invalid_Method     = -16,      //!< Invalid quic method.
-    kBeQuicErrorCode_Count              = 17        //!< Error code count.
+    kBeQuicErrorCode_Thread_Not_Running = -17,      //!< Thread not running.
+    kBeQuicErrorCode_Count              = 18        //!< Error code count.
 }BeQuicErrorCode;
 
 /// BeQuic Header struct defination.

@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27703.2047
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BeQuicTest", "BeQuicTest.vcxproj", "{EDD4A125-CB41-4443-A53B-8268B67DB813}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{EDD4A125-CB41-4443-A53B-8268B67DB813}.Debug|x64.ActiveCfg = Debug|x64
+		{EDD4A125-CB41-4443-A53B-8268B67DB813}.Debug|x64.Build.0 = Debug|x64
+		{EDD4A125-CB41-4443-A53B-8268B67DB813}.Debug|x86.ActiveCfg = Debug|Win32
+		{EDD4A125-CB41-4443-A53B-8268B67DB813}.Debug|x86.Build.0 = Debug|Win32
+		{EDD4A125-CB41-4443-A53B-8268B67DB813}.Release|x64.ActiveCfg = Release|x64
+		{EDD4A125-CB41-4443-A53B-8268B67DB813}.Release|x64.Build.0 = Release|x64
+		{EDD4A125-CB41-4443-A53B-8268B67DB813}.Release|x86.ActiveCfg = Release|Win32
+		{EDD4A125-CB41-4443-A53B-8268B67DB813}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5890D34E-5EB6-4EC1-8041-E117E7286CC3}
+	EndGlobalSection
+EndGlobal

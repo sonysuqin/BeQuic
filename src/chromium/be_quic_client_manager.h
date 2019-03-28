@@ -14,13 +14,11 @@ public:
     ~BeQuicClientManager();
 
 public:
-    BeQuicClient::Ptr create_client(
-        quic::QuicSocketAddress server_address,
-        const quic::QuicServerId& server_id,
-        const quic::ParsedQuicVersionVector& supported_versions,
-        std::unique_ptr<quic::ProofVerifier> proof_verifier);
+    BeQuicClient::Ptr create_client();
 
     void release_client(int handle);
+    
+    void close_and_release_client(int handle);
 
     BeQuicClient::Ptr get_client(int handle);
 

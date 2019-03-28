@@ -3459,6 +3459,8 @@ if (!is_ios) {
   }
   shared_library("be_quic") {
     sources = [
+      "tools/quic/basic_streambuf.hpp",
+      "tools/quic/basic_streambuf_fwd.hpp",
       "tools/quic/be_quic_define.h",
       "tools/quic/be_quic.h",
       "tools/quic/be_quic.cc",
@@ -3468,6 +3470,14 @@ if (!is_ios) {
       "tools/quic/be_quic_client_manager.cc",
       "tools/quic/be_quic_fake_proof_verifier.h",
       "tools/quic/be_quic_fake_proof_verifier.cc",
+      "tools/quic/be_quic_spdy_client.h",
+      "tools/quic/be_quic_spdy_client.cc",
+      "tools/quic/be_quic_spdy_client_session.h",
+      "tools/quic/be_quic_spdy_client_session.cc",
+      "tools/quic/be_quic_spdy_client_stream.h",
+      "tools/quic/be_quic_spdy_client_stream.cc",
+      "tools/quic/buffer.hpp",
+      "tools/quic/streambuf.hpp",
     ]
     deps = [
       ":net",
