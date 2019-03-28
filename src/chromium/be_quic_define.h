@@ -49,7 +49,7 @@ typedef struct BeQuicHeader {
 } BeQuicHeader;
 
 /// Logging callback.
-typedef bool (*BeQuicLogCallback)(
+typedef void (*BeQuicLogCallback)(
     const char* severity, const char* file, int line, const char* msg);
 
 #endif // #ifndef __BE_QUIC_DEFINE_H__
