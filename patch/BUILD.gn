@@ -3457,7 +3457,7 @@ if (!is_ios) {
       "//third_party/protobuf:protobuf_lite",
     ]
   }
-  shared_library("be_quic") {
+  shared_library("libbequic") {
     sources = [
       "tools/quic/basic_streambuf.hpp",
       "tools/quic/basic_streambuf_fwd.hpp",

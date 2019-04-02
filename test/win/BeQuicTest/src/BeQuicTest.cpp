@@ -2,7 +2,7 @@
 #include "be_quic.h"
 #include <string>
 
-bool g_write_file   = false;
+bool g_write_file   = true;
 FILE *g_fp          = NULL;
 std::string g_data;
 
@@ -28,12 +28,12 @@ int main(int argc, char* argv[]) {
             g_fp = fopen("1.mp4", "wb+");
         }
 
-        unsigned char buf[1024] = { 0 };
+        unsigned char buf[32 * 1024] = { 0 };
         int len = (int)sizeof(buf);
         int total_len = 0;
         int read_len = 0;
         do {
-            read_len = be_quic_read(handle, buf, len);
+            read_len = be_quic_read(handle, buf, len, 5000);
             if (read_len == 0) {
                 continue;
             }

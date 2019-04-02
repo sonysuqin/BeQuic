@@ -2,7 +2,14 @@
 #include "net/tools/quic/be_quic_spdy_client_session.h"
 #include "net/tools/quic/be_quic_define.h"
 
+#define AVSEEK_SIZE     0x10000
+#define SEEK_SET        0
+#define SEEK_CUR        1
+#define SEEK_END        2
+
 namespace net {
+
+const int kReadBlockSize = 32768;
 
 BeQuicSpdyClient::BeQuicSpdyClient(
         quic::QuicSocketAddress server_address,
@@ -37,7 +44,7 @@ std::unique_ptr<quic::QuicSession> BeQuicSpdyClient::CreateQuicClientSession(
     return session;
 }
 
-int BeQuicSpdyClient::read_body(unsigned char *buf, int size) {
+int BeQuicSpdyClient::read_body(unsigned char *buf, int size, int timeout) {
     int ret = 0;
     do {
         if (buf == NULL || size == 0) {
@@ -51,7 +58,18 @@ int BeQuicSpdyClient::read_body(unsigned char *buf, int size) {
             break;
         }
 
-        base::AutoLock lock(mutex_);
+        std::unique_lock<std::mutex> lock(mutex_);
+        while (!is_buffer_sufficient()) {            
+            if (timeout > 0) {
+                //Wait for certain time.
+                //LOG(INFO) << "buf size 0 will wait " << timeout << "ms" << std::endl;
+                cond_.wait_until(lock, std::chrono::system_clock::now() + std::chrono::milliseconds(timeout));
+            } else if (timeout < 0) {
+                //Wait forever.
+                cond_.wait(lock);
+            }
+            break;
+        }
         size_t read_len = std::min<size_t>((size_t)size, response_buff_.size());
         if (read_len == 0) {
             break;
@@ -60,8 +78,32 @@ int BeQuicSpdyClient::read_body(unsigned char *buf, int size) {
         istream_.read((char*)buf, read_len);
         read_offset_ += read_len;
         ret = (int)read_len;
+        //LOG(INFO) << "buf read " << ret << "byte" << std::endl;
     } while (0);
     return ret;
+}
+
+int64_t BeQuicSpdyClient::seek(int64_t off, int whence) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    if (whence == AVSEEK_SIZE) {
+        return content_length_;
+    } else if ((whence == SEEK_CUR && off == 0) || (whence == SEEK_SET && off == read_offset_)) {
+        return off;
+    } else if (content_length_ == -1 && whence == SEEK_END) {
+        return -1;
+    }
+
+    if (whence == SEEK_CUR)
+        off += read_offset_;
+    else if (whence == SEEK_END)
+        off += content_length_;
+    else if (whence != SEEK_SET)
+        return -1;
+    if (off < 0)
+        return -1;
+    read_offset_ = off;
+
+    return off;
 }
 
 void BeQuicSpdyClient::on_data(quic::QuicSpdyClientStream *stream, char *buf, int size) {
@@ -75,9 +117,37 @@ void BeQuicSpdyClient::on_data(quic::QuicSpdyClientStream *stream, char *buf, in
     }
 
     if (buf != NULL && size > 0) {
-        base::AutoLock lock(mutex_);
+        std::unique_lock<std::mutex> lock(mutex_);
         ostream_.write(buf ,size);
+        if (is_buffer_sufficient()) {
+            //LOG(INFO) << "buf write one block " << response_buff_.size() << std::endl;
+            cond_.notify_all();
+        }
     }
+}
+
+bool BeQuicSpdyClient::is_buffer_sufficient() {
+    bool ret = true;
+    do {
+        size_t size = response_buff_.size();
+        if (content_length_ <= 0 || size == 0) {
+            ret = false;
+            break;
+        }
+
+        if (content_length_ - read_offset_ < kReadBlockSize) {
+            ret = true;
+            break;
+        }
+
+        if (size < kReadBlockSize) {
+            ret = false;
+            break;
+        }
+
+        ret = true;
+    } while (0);
+    return ret;
 }
 
 }  // namespace net

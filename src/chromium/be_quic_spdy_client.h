@@ -4,6 +4,10 @@
 #include "net/tools/quic/quic_simple_client.h"
 #include "net/tools/quic/be_quic_spdy_client_stream.h"
 #include "net/tools/quic/be_quic_spdy_data_delegate.h"
+#include "base/synchronization/condition_variable.h"
+
+#include <mutex>
+#include <condition_variable>
 
 namespace net {
 
@@ -25,12 +29,18 @@ public:
         const quic::ParsedQuicVersionVector& supported_versions,
         quic::QuicConnection* connection) override;
 
-    int read_body(unsigned char *buf, int size);
+    int read_body(unsigned char *buf, int size, int timeout);
+
+    int64_t seek(int64_t off, int whence);
 
     void on_data(quic::QuicSpdyClientStream *stream, char *buf, int size) override;
 
 private:
-    base::Lock mutex_;
+    bool is_buffer_sufficient();
+
+private:
+    std::mutex mutex_;
+    std::condition_variable cond_;
     //Parent class save body content in std::string, causing increasing memory
     //when downloaing big file, so repace it with streambuf from boost::asio.
     boost::asio::streambuf response_buff_;

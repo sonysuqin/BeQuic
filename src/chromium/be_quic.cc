@@ -118,7 +118,7 @@ int BE_QUIC_CALL be_quic_close(int handle) {
     return 0;
 }
 
-int BE_QUIC_CALL be_quic_read(int handle, unsigned char *buf, int size) {
+int BE_QUIC_CALL be_quic_read(int handle, unsigned char *buf, int size, int timeout) {
     int ret = 0;
     do {
         net::BeQuicClient::Ptr client = net::BeQuicClientManager::instance()->get_client(handle);
@@ -127,7 +127,7 @@ int BE_QUIC_CALL be_quic_read(int handle, unsigned char *buf, int size) {
             break;
         }
 
-        ret = client->read_body(buf, size);
+        ret = client->read_body(buf, size, timeout);
     } while (0);
     return ret;
 }
@@ -136,10 +136,20 @@ int BE_QUIC_CALL be_quic_write(int handle, const unsigned char *buf, int size) {
     return 0;
 }
 
+bequic_int64_t BE_QUIC_CALL be_quic_seek(int handle, bequic_int64_t off, int whence) {
+    bequic_int64_t ret = 0;
+    do {
+        net::BeQuicClient::Ptr client = net::BeQuicClientManager::instance()->get_client(handle);
+        if (client == NULL) {
+            ret = kBeQuicErrorCode_Not_Found;
+            break;
+        }
+
+        ret = client->seek(off, whence);
+    } while (0);
+    return ret;
+}
+
 void BE_QUIC_CALL be_quic_set_log_callback(BeQuicLogCallback callback) {
     g_external_log_callback = callback;
 }
-
-// int BE_QUIC_CALL be_quic_seek(int handle, int64_t off, int whence) {
-//     return 0;
-// }

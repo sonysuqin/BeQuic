@@ -42,7 +42,9 @@ public:
 
     void close();
 
-    int read_body(unsigned char *buf, int size);
+    int read_body(unsigned char *buf, int size, int timeout);
+
+    int64_t seek(int64_t off, int whence);
 
     int get_handle() { return handle_; }
     
@@ -67,6 +69,8 @@ private:
     std::shared_ptr<std::promise<int> > promise_;
     bool busy_ = false;
     bool running_ = false;
+    std::mutex mutex_;
+    std::condition_variable cond_;
 };
 
 }  // namespace net

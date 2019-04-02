@@ -113,9 +113,13 @@ void BeQuicClient::close() {
     }
 
     //Stop thread.
-    running_ = false;
+    if (true) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        running_ = false;
+        cond_.notify_all();
+    }
 
-    //Wait for thread.
+    //Wait for thread exit.
     Join();
 
     //Reset all members.
@@ -127,7 +131,7 @@ void BeQuicClient::close() {
     headers_.clear();
 }
 
-int BeQuicClient::read_body(unsigned char *buf, int size) {
+int BeQuicClient::read_body(unsigned char *buf, int size, int timeout) {
     int ret = 0;
     do {
         if (spdy_quic_client_ == NULL) {
@@ -135,7 +139,19 @@ int BeQuicClient::read_body(unsigned char *buf, int size) {
             break;
         }
 
-        ret = spdy_quic_client_->read_body(buf, size);
+        ret = spdy_quic_client_->read_body(buf, size, timeout);
+    } while (0);
+    return ret;
+}
+
+int64_t BeQuicClient::seek(int64_t off, int whence) {
+    bequic_int64_t ret = -1;
+    do {
+        if (spdy_quic_client_ == NULL) {
+            break;
+        }
+
+        ret = spdy_quic_client_->seek(off, whence);
     } while (0);
     return ret;
 }
@@ -163,9 +179,17 @@ void BeQuicClient::Run() {
 
         //Content message loop.
         while (running_ && spdy_quic_client_ && spdy_quic_client_->WaitForEvents()) {
-
+            //Event loop.
         }
     } while (0);
+
+    //Wait for close condition.
+    if (true) {    
+        std::unique_lock<std::mutex> lock(mutex_);
+        while (running_) {
+            cond_.wait(lock);
+        }
+    }
 
     //Disconnect quic client in this thread.
     if (spdy_quic_client_) {

@@ -41,9 +41,10 @@ BE_QUIC_API int BE_QUIC_CALL be_quic_close(int handle);
  *  @param  handle              Quic session handle.
  *  @param  buf                 Buffer pointer.
  *  @param  size                Buffer size.
+ *  @param  timeout             Timeout of this method, 0:Not wait, >0:Wait for timeout ms, <0:Wait forever.
  *  @return Read data size if > 0, otherwise, return error code.
  */
-BE_QUIC_API int BE_QUIC_CALL be_quic_read(int handle, unsigned char *buf, int size);
+BE_QUIC_API int BE_QUIC_CALL be_quic_read(int handle, unsigned char *buf, int size, int timeout);
 
 /**
  *  @brief  Write data(may be quic body) to a quic session.
@@ -55,13 +56,19 @@ BE_QUIC_API int BE_QUIC_CALL be_quic_read(int handle, unsigned char *buf, int si
 BE_QUIC_API int BE_QUIC_CALL be_quic_write(int handle, const unsigned char *buf, int size);
 
 /**
+ *  @brief  Seek to an offset in file.
+ *  @param  handle              Quic session handle.
+ *  @param  off                 Offset value.
+ *  @param  whence              Offset reference.
+ *  @return Offset in file.
+ */
+BE_QUIC_API bequic_int64_t BE_QUIC_CALL be_quic_seek(int handle, bequic_int64_t off, int whence);
+
+/**
  *  @brief  Set log callback.
  *  @param  callback            Log callback.
  */
 BE_QUIC_API void BE_QUIC_CALL be_quic_set_log_callback(BeQuicLogCallback callback);
-
-//TBD
-//BE_QUIC_API int BE_QUIC_CALL be_quic_seek(int handle, int64_t off, int whence);
 
 #ifdef __cplusplus
 }

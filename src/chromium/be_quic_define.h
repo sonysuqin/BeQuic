@@ -11,12 +11,70 @@
 #else
 #define BE_QUIC_API
 #endif
-#define BE_QUIC_CALL __stdcall
-#define BE_QUIC_CALLBACK __stdcall
+#define BE_QUIC_CALL __cdecl
+#define BE_QUIC_CALLBACK __cdecl
 #else
 #define BE_QUIC_API
 #define BE_QUIC_CALL
 #define BE_QUIC_CALLBACK
+#endif
+
+/// GNU/Linux System 64-bits Integer.
+#if defined(__GNUC__) || defined(linux) ||defined(__linux)
+#if defined (__GLIBC_HAVE_LONG_LONG) || (defined(ULLONG_MAX) && (ULLONG_MAX == 0xFFFFFFFFFFFFFFFFUL)) || defined (PREDEF_STANDARD_C_1999)
+#ifndef DEFINE_INT64
+typedef long long bequic_int64_t, *bequic_int64_p;
+typedef unsigned long long bequic_uint64_t, *bequic_uint64_p;
+#define DEFINE_INT64
+#endif
+#endif
+#endif
+
+/// Windows System 64-bits Integer.
+#if defined (WIN32) || defined (_WIN32)
+#if defined(_MSC_VER) || defined(__BORLANDC__)
+#ifndef DEFINE_INT64
+typedef __int64 bequic_int64_t, *bequic_int64_p;
+typedef unsigned __int64 bequic_uint64_t, *bequic_uint64_p;
+#define DEFINE_INT64
+#endif
+#elif !(defined(unix) || defined(__unix__) || defined(__unix))
+#ifndef DEFINE_INT64
+typedef unsigned long long bequic_int64_t, *bequic_int64_p;
+typedef signed long long bequic_uint64_t, *bequic_uint64_p;
+#define DEFINE_INT64
+#endif
+#endif
+#endif
+
+/// UNIX System 64-bits Integer.
+#if defined(unix) || defined(__unix__) || defined(__unix)
+#define PREDEF_PLATFORM_UNIX
+#endif
+#if defined(PREDEF_PLATFORM_UNIX)
+#include <unistd.h>
+#if defined(_XOPEN_VERSION)
+#if (_XOPEN_VERSION >= 3)
+#define PREDEF_STANDARD_XOPEN_1989
+#endif
+#if (_XOPEN_VERSION >= 4)
+#define PREDEF_STANDARD_XOPEN_1992
+#endif
+#if (_XOPEN_VERSION >= 4) && defined(_XOPEN_UNIX)
+#define PREDEF_STANDARD_XOPEN_1995
+#endif
+#if (_XOPEN_VERSION >= 500)
+#define PREDEF_STANDARD_XOPEN_1998
+#endif
+#if (_XOPEN_VERSION >= 600)
+#define PREDEF_STANDARD_XOPEN_2003
+#ifndef DEFINE_INT64
+typedef unsigned long long bequic_uint64_t, *bequic_uint64_p;
+typedef signed long long bequic_int64_t, *bequic_int64_p;
+#define DEFINE_INT64
+#endif
+#endif
+#endif
 #endif
 
 /// BeQuic Error code defination.
