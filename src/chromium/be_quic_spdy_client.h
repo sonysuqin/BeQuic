@@ -31,7 +31,9 @@ public:
 
     int read_body(unsigned char *buf, int size, int timeout);
 
-    int64_t seek(int64_t off, int whence);
+    int64_t seek_in_buffer(int64_t off, int whence, int64_t *target_off);
+
+    bool close_current_stream();
 
     void on_data(quic::QuicSpdyClientStream *stream, char *buf, int size) override;
 
@@ -48,6 +50,7 @@ private:
     std::ostream ostream_;
     int64_t content_length_ = -1;
     int64_t read_offset_ = 0;
+    quic::QuicStreamId current_stream_id_ = 0;
 };
 
 }  // namespace net

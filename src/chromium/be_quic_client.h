@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 #include <future>
+#include <atomic>
 
 namespace net {
 
@@ -46,11 +47,19 @@ public:
 
     int64_t seek(int64_t off, int whence);
 
+    int64_t seek_from_net(int64_t off);
+
+    bool check_seeking();
+
     int get_handle() { return handle_; }
     
     void Run() override;
 
 private:
+    void run_event_loop();
+
+    void run_idle_loop();    
+
     int internal_request(
         const std::string& url,
         const std::string& method,
@@ -61,16 +70,20 @@ private:
 private:
     int handle_ = -1;
     std::shared_ptr<BeQuicSpdyClient> spdy_quic_client_;
+    spdy::SpdyHeaderBlock header_block_;
     std::string url_;
     std::string method_;
     std::vector<InternalQuicHeader> headers_;
     std::string body_;
     bool verify_certificate_ = true;
-    std::shared_ptr<std::promise<int> > promise_;
-    bool busy_ = false;
-    bool running_ = false;
+    std::shared_ptr<std::promise<int> > open_promise_;
+    std::shared_ptr<std::promise<int64_t> > seek_promise_;
+    std::atomic_bool busy_;
+    std::atomic_bool running_;
+    std::atomic_bool seeking_;
     std::mutex mutex_;
-    std::condition_variable cond_;
+    std::condition_variable cond_; //Closing and seeking condition.
+    int64_t seek_offset_ = -1;
 };
 
 }  // namespace net

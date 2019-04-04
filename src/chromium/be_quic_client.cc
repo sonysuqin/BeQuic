@@ -37,7 +37,10 @@ namespace net {
 
 BeQuicClient::BeQuicClient(int handle)
     : base::SimpleThread("BeQuic"),
-      handle_(handle) {
+      handle_(handle),
+      busy_(false),
+      running_(false),
+      seeking_(false) {
     LOG(INFO) << "BeQuicClient created " << handle_ << std::endl;
 }
 
@@ -73,7 +76,7 @@ int BeQuicClient::open(
 
         //Create promise for blocking wait.
         if (timeout != 0) {
-            promise_.reset(new std::promise<int>);
+            open_promise_.reset(new std::promise<int>);
         }
 
         //Start thread.
@@ -83,12 +86,12 @@ int BeQuicClient::open(
         busy_ = true;
 
         //If won't blocking.
-        if (!promise_)  {
+        if (!open_promise_)  {
             break;
         }
 
         //Wait forever if timeout set to -1.
-        std::shared_future<int> future = promise_->get_future();
+        std::shared_future<int> future = open_promise_->get_future();
         if (timeout < 0) {
             ret = future.get(); //Blocking.
             break;
@@ -108,27 +111,26 @@ int BeQuicClient::open(
 }
 
 void BeQuicClient::close() {
+    //Stop thread.
     if (!busy_) {
         return;
     }
 
-    //Stop thread.
+    //Trick, wait until thread started.
+    while (!running_) {
+        base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(50));
+    }
+
+    //Notify stopping running.
     if (true) {
         std::unique_lock<std::mutex> lock(mutex_);
-        running_ = false;
+        running_    = false;
+        busy_       = false;
         cond_.notify_all();
     }
 
     //Wait for thread exit.
     Join();
-
-    //Reset all members.
-    url_                    = "";
-    method_                 = "";
-    body_                   = "";
-    verify_certificate_     = true;
-    busy_                   = false;
-    headers_.clear();
 }
 
 int BeQuicClient::read_body(unsigned char *buf, int size, int timeout) {
@@ -145,14 +147,67 @@ int BeQuicClient::read_body(unsigned char *buf, int size, int timeout) {
 }
 
 int64_t BeQuicClient::seek(int64_t off, int whence) {
-    bequic_int64_t ret = -1;
+    int64_t ret = -1;
     do {
         if (spdy_quic_client_ == NULL) {
+            ret = kBeQuicErrorCode_Invalid_State;
             break;
         }
 
-        ret = spdy_quic_client_->seek(off, whence);
+        int64_t target_offset = -1;
+        ret = spdy_quic_client_->seek_in_buffer(off, whence, &target_offset);
+        if (ret == kBeQuicErrorCode_Buffer_Not_Hit) {
+            ret = seek_from_net(target_offset);
+        }
     } while (0);
+    return ret;
+}
+
+int64_t BeQuicClient::seek_from_net(int64_t off) {
+    std::shared_ptr<std::promise<int64_t> > seek_promise(new std::promise<int64_t>);
+    std::shared_future<int64_t> future = seek_promise->get_future();
+    seek_promise_ = seek_promise;
+    seek_offset_ = off;
+    
+    if (true) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        seeking_ = true;
+        cond_.notify_one();
+    }
+
+    int64_t ret = future.get();
+    return ret;
+}
+
+bool BeQuicClient::check_seeking() {
+    bool ret = true;
+    do {
+        if (!seeking_) {
+            ret = false;
+            break;
+        }
+
+        seeking_ = false;
+
+        if (spdy_quic_client_ == NULL || seek_offset_ < 0) {
+            ret = false;
+            break;
+        }
+
+        //Not test this yet, for server not supported currently.
+        spdy_quic_client_->close_current_stream();
+
+        std::ostringstream os;
+        os << "bytes=" << seek_offset_ << "-";
+        header_block_["range"] = os.str();
+
+        spdy_quic_client_->SendRequest(header_block_, "", true);
+    } while (0);
+
+    if (seek_promise_ != NULL) {
+        seek_promise_->set_value(seek_offset_);
+        seek_promise_.reset();
+    }
     return ret;
 }
 
@@ -177,19 +232,12 @@ void BeQuicClient::Run() {
             break;
         }
 
-        //Content message loop.
-        while (running_ && spdy_quic_client_ && spdy_quic_client_->WaitForEvents()) {
-            //Event loop.
-        }
+        //Event loop.
+        run_event_loop();
     } while (0);
 
-    //Wait for close condition.
-    if (true) {    
-        std::unique_lock<std::mutex> lock(mutex_);
-        while (running_) {
-            cond_.wait(lock);
-        }
-    }
+    //Idle loop.
+    run_idle_loop();
 
     //Disconnect quic client in this thread.
     if (spdy_quic_client_) {
@@ -198,12 +246,44 @@ void BeQuicClient::Run() {
     }
 
     //Release promise if any.
-    if (promise_) {
-        promise_->set_value(0);
-        promise_.reset();
+    if (open_promise_) {
+        open_promise_->set_value(0);
+        open_promise_.reset();
     }
 
+    //Reset all members.
+    url_                    = "";
+    method_                 = "";
+    body_                   = "";
+    verify_certificate_     = true;
+    headers_.clear();
+
     LOG(INFO) << "Thread handle " << handle_ << " exit." << std::endl;
+}
+
+void BeQuicClient::run_event_loop() {
+    while (running_ && spdy_quic_client_ && spdy_quic_client_->WaitForEvents()) {
+        check_seeking();
+    }
+}
+
+void BeQuicClient::run_idle_loop() {
+    do {
+        if (true) {
+            std::unique_lock<std::mutex> lock(mutex_);
+            while (running_ && !seeking_) {
+                cond_.wait(lock);
+            }
+
+            if (!running_) {
+                break;
+            }
+        }
+
+        if (check_seeking()) {
+            run_event_loop();
+        }
+    } while (running_);
 }
 
 int BeQuicClient::internal_request(
@@ -283,17 +363,10 @@ int BeQuicClient::internal_request(
 
         LOG(INFO) << "Connected!" << std::endl;
 
-        //Causing invoke method out of block after connect and handshake finished.
-        if (promise_) {
-            promise_->set_value(ret);
-            promise_.reset();
-        }
-
-        SpdyHeaderBlock header_block;
-        header_block[":method"]      = method;
-        header_block[":scheme"]      = gurl.scheme();
-        header_block[":authority"]   = gurl.host();
-        header_block[":path"]        = gurl.path();
+        header_block_[":method"]      = method;
+        header_block_[":scheme"]      = gurl.scheme();
+        header_block_[":authority"]   = gurl.host();
+        header_block_[":path"]        = gurl.path();
 
         for (size_t i = 0; i < headers.size(); ++i) {
             InternalQuicHeader &header = headers[i];
@@ -305,11 +378,11 @@ int BeQuicClient::internal_request(
             QuicStringPiece value   = header.value; 
             quic::QuicTextUtils::RemoveLeadingAndTrailingWhitespace(&key);
             quic::QuicTextUtils::RemoveLeadingAndTrailingWhitespace(&value);
-            header_block[key]       = value;
+            header_block_[key]       = value;
         }
 
         spdy_quic_client_->set_store_response(true);
-        spdy_quic_client_->SendRequest(header_block, body, true);
+        spdy_quic_client_->SendRequest(header_block_, body, true);
 
         /*
         //For small file.
@@ -324,6 +397,12 @@ int BeQuicClient::internal_request(
         LOG(INFO) << "trailers: "   << spdy_quic_client_->latest_response_trailers() << std::endl;
         */
     } while (0);
+
+    //Causing invoke method out of block after connect and handshake finished.
+    if (open_promise_) {
+        open_promise_->set_value(ret);
+        open_promise_.reset();
+    }
     return ret;
 }
 

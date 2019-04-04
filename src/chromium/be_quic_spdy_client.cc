@@ -83,32 +83,81 @@ int BeQuicSpdyClient::read_body(unsigned char *buf, int size, int timeout) {
     return ret;
 }
 
-int64_t BeQuicSpdyClient::seek(int64_t off, int whence) {
+int64_t BeQuicSpdyClient::seek_in_buffer(int64_t off, int whence, int64_t *target_off) {
     std::unique_lock<std::mutex> lock(mutex_);
+    if (!connected()) {
+        return kBeQuicErrorCode_Invalid_State;    
+    }
+
     if (whence == AVSEEK_SIZE) {
         return content_length_;
     } else if ((whence == SEEK_CUR && off == 0) || (whence == SEEK_SET && off == read_offset_)) {
         return off;
     } else if (content_length_ == -1 && whence == SEEK_END) {
-        return -1;
+        return kBeQuicErrorCode_Invalid_State;
     }
 
-    if (whence == SEEK_CUR)
+    if (whence == SEEK_CUR) {
         off += read_offset_;
-    else if (whence == SEEK_END)
+    } else if (whence == SEEK_END) {
         off += content_length_;
-    else if (whence != SEEK_SET)
-        return -1;
-    if (off < 0)
-        return -1;
-    read_offset_ = off;
+    } else if (whence != SEEK_SET) {
+        return kBeQuicErrorCode_Invalid_Param;
+    }
 
-    return off;
+    if (off < 0) {
+        return kBeQuicErrorCode_Invalid_Param;
+    }
+
+    //Check if hit the buffer.
+    int64_t left_size = (int64_t)response_buff_.size();
+    int64_t consume_size = off - read_offset_;
+
+    if (consume_size > 0 && left_size > consume_size) {
+        response_buff_.consume(consume_size);
+        read_offset_ = off;
+        return off;
+    }
+    
+    if (target_off != NULL) {
+        *target_off = off;
+    }
+    return kBeQuicErrorCode_Buffer_Not_Hit;
+}
+
+bool BeQuicSpdyClient::close_current_stream() {
+    bool ret = true;
+    do {
+        if (current_stream_id_ == 0) {
+            ret = false;
+            break;
+        }
+
+        quic::QuicSession *session = QuicClientBase::session();
+        if (session == NULL) {
+            ret = false;
+            break;
+        }
+
+        //Close quic stream.
+        session->CloseStream(current_stream_id_);
+        current_stream_id_ = 0;
+        read_offset_ = 0;
+
+        //Clear cached data.
+        response_buff_.consume(response_buff_.size());
+    } while (0);
+    return ret;
 }
 
 void BeQuicSpdyClient::on_data(quic::QuicSpdyClientStream *stream, char *buf, int size) {
     if (stream == NULL) {
         return;
+    }
+
+    if (current_stream_id_ == 0) {
+        current_stream_id_ = stream->id();
+        LOG(INFO) << "Bound to stream " << current_stream_id_ << std::endl;
     }
     
     if (content_length_ == -1) {

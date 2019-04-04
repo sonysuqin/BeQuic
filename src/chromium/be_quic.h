@@ -1,3 +1,12 @@
+/**
+ *  @file        be_quic.h
+ *  @brief       libbequic api definition.
+ *  @author      sonysuqin
+ *  @copyright   sonysuqin
+ *  @version     1.0
+ *  @note        These methods are not thread safe, make sure to call them from single thread.
+ */
+
 #ifndef __BE_QUIC_H__
 #define __BE_QUIC_H__
 
@@ -37,7 +46,7 @@ BE_QUIC_API int BE_QUIC_CALL be_quic_open(
 BE_QUIC_API int BE_QUIC_CALL be_quic_close(int handle);
 
 /**
- *  @brief  Read data from a quic session.
+ *  @brief  Read data from current stream of quic session.
  *  @param  handle              Quic session handle.
  *  @param  buf                 Buffer pointer.
  *  @param  size                Buffer size.
@@ -47,7 +56,7 @@ BE_QUIC_API int BE_QUIC_CALL be_quic_close(int handle);
 BE_QUIC_API int BE_QUIC_CALL be_quic_read(int handle, unsigned char *buf, int size, int timeout);
 
 /**
- *  @brief  Write data(may be quic body) to a quic session.
+ *  @brief  Write data(quic body) to current stream of quic session.
  *  @param  handle              Quic session handle.
  *  @param  buf                 Buffer pointer.
  *  @param  size                Buffer size.
