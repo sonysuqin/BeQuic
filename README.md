@@ -4,7 +4,7 @@ QUIC也就是HTTP3，是Google为了解决HTTP2的一些问题提出的基于UDP
 
 QUIC的主要优点是减少握手延迟(号称0RTT)、出色的流控(BBR、CUBIC)、多路复用等，已经成为事实上的下一代HTTP标准。但是目前该标准在实现上有两个版本，一个是IETF的版本，一个是Google自己的版本，这两者目前并不互通。
 
-本文介绍了基于Google的QUIC协议封装的bequic库，并集成到FFmpeg中，让FFmpeg可以通过quic协议播放视频。
+本文介绍了基于Google的QUIC协议封装的bequic库，并集成到FFmpeg中，让FFmpeg可以通过QUIC协议播放视频。
 # 2 代码地址
 bequic：
 [https://github.com/sonysuqin/BeQuic](https://github.com/sonysuqin/BeQuic)
