@@ -213,4 +213,5 @@ certutil -addstore -f "ROOT" 2048-sha256-root.pem
 ```
 > 1.目前quic对应http，quics对应https;
 > 2.如果设置-verify_certificate 0，则可以省略证书生成和安装环节。
+
 ![在这里插入图片描述](https://img-blog.csdnimg.cn/20190404171904781.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3NvbnlzdXFpbg==,size_16,color_FFFFFF,t_70)
