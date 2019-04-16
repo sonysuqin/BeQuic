@@ -1,0 +1,11 @@
+{
+  global:
+    be_quic_open;
+    be_quic_close;
+    be_quic_read;
+    be_quic_write;
+    be_quic_seek;
+    be_quic_set_log_callback;
+  local:
+    *;
+};

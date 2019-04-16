@@ -21,6 +21,7 @@
 #include "net/third_party/quiche/src/spdy/core/spdy_header_block.h"
 #include "base/logging.h"
 #include "base/message_loop/message_loop.h"
+#include "base/strings/string_split.h"
 #include "url/gurl.h"
 
 using net::CertVerifier;
@@ -50,6 +51,8 @@ BeQuicClient::~BeQuicClient() {
 
 int BeQuicClient::open(
     const std::string& url,
+    const char *ip,
+    unsigned short port,
     const std::string& method,
     std::vector<InternalQuicHeader> headers,
     const std::string& body,
@@ -69,6 +72,8 @@ int BeQuicClient::open(
         
         //Save parameters.
         url_                = url;
+        mapped_ip_          = (ip == NULL) ? "" : ip;
+        mapped_port_        = port;
         method_             = method;
         headers_            = headers;
         body_               = body;
@@ -224,6 +229,8 @@ void BeQuicClient::Run() {
         //Internal request.
         int ret = internal_request(
             url_,
+            mapped_ip_,
+            mapped_port_,
             method_,
             headers_,
             body_,
@@ -288,6 +295,8 @@ void BeQuicClient::run_idle_loop() {
 
 int BeQuicClient::internal_request(
     const std::string& url,
+    const std::string& mapped_ip,
+    unsigned short mapped_port,
     const std::string& method,
     std::vector<InternalQuicHeader> headers,
     const std::string& body,
@@ -298,12 +307,27 @@ int BeQuicClient::internal_request(
         GURL gurl(url);
         std::string host    = gurl.host();
         int port            = gurl.EffectiveIntPort();
+
+        //Check mapped port.
+        if (mapped_port > 0) {
+            port = mapped_port;
+        }
         
         LOG(INFO) << "BeQuicOpen " << host << ":" << port << " => " << url << "," << method << std::endl;
 
-        //Resolve host to address synchronously.
         net::AddressList addresses;
-        if (net::SynchronousHostResolver::Resolve(host, &addresses) != net::OK) {
+        if (!mapped_ip.empty()) {
+            //Check mapped ip.
+            std::vector<std::string> numbers = base::SplitString(mapped_ip, ".", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
+            if (numbers.size() != 4) {
+                ret = kBeQuicErrorCode_Invalid_Param;
+                break;
+            }
+
+            IPAddress addr(atoi(numbers[0].c_str()), atoi(numbers[1].c_str()), atoi(numbers[2].c_str()), atoi(numbers[3].c_str()));
+            addresses = AddressList::CreateFromIPAddress(addr, port);
+        } else if (net::SynchronousHostResolver::Resolve(host, &addresses) != net::OK) {
+            //Resolve host to address synchronously.
             ret = kBeQuicErrorCode_Resolve_Fail;
             break;
         }

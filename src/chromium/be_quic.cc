@@ -30,6 +30,8 @@ bool internal_log_callback(int severity, const char* file, int line, size_t mess
 ////////////////////////////////////Export methods implementation//////////////////////////////////////
 int BE_QUIC_CALL be_quic_open(
     const char *url,
+    const char *ip,
+    unsigned short port,
     const char *method,
     BeQuicHeader *headers,
     int header_num,
@@ -99,6 +101,8 @@ int BE_QUIC_CALL be_quic_open(
         //Request, will create a new thread.
         int rv = client->open(
             url,
+            ip,
+            port,
             method_str,
             header_vec,
             body_str,

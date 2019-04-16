@@ -19,6 +19,8 @@ extern "C" {
 /**
  *  @brief  Synchronously open a quic session for a request.
  *  @param  url                 Quic request url.
+ *  @param  ip                  Mapped ip of endpoint in url.
+ *  @param  port                Mapped port of endpoint in url.
  *  @param  method              Quic request method, only "GET" and "POST" supported, if NULL, default to "GET".
  *  @param  headers             Quic request headers array pointer.
  *  @param  headers_num         Quic request headers array size.
@@ -31,6 +33,8 @@ extern "C" {
  */
 BE_QUIC_API int BE_QUIC_CALL be_quic_open(
     const char *url,
+    const char *ip,
+    unsigned short port,
     const char *method,
     BeQuicHeader *headers,
     int header_num,

@@ -35,6 +35,8 @@ public:
 public:
     int open(
         const std::string& url,
+        const char *ip,
+        unsigned short port,
         const std::string& method,
         std::vector<InternalQuicHeader> headers,
         const std::string& body,
@@ -62,6 +64,8 @@ private:
 
     int internal_request(
         const std::string& url,
+        const std::string& mapped_ip,
+        unsigned short mapped_port,
         const std::string& method,
         std::vector<InternalQuicHeader> headers,
         const std::string& body,
@@ -72,6 +76,8 @@ private:
     std::shared_ptr<BeQuicSpdyClient> spdy_quic_client_;
     spdy::SpdyHeaderBlock header_block_;
     std::string url_;
+    std::string mapped_ip_;
+    unsigned short mapped_port_ = 0;
     std::string method_;
     std::vector<InternalQuicHeader> headers_;
     std::string body_;

@@ -14,7 +14,11 @@
 #define BE_QUIC_CALL __cdecl
 #define BE_QUIC_CALLBACK __cdecl
 #else
+#ifdef  BE_QUIC_EXPORTS
+#define BE_QUIC_API __attribute__((visibility("default")))
+#else
 #define BE_QUIC_API
+#endif
 #define BE_QUIC_CALL
 #define BE_QUIC_CALLBACK
 #endif
