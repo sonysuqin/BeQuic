@@ -72,13 +72,10 @@ bequic库封装了Google Chromium Quiche库，对外提供C的接口，因此需
 | Chromium |  最新版，版本号4c428bdc69a2c16fdb0c5576e4098373bd6cc4e3 |
 | FFMpeg |  4.1 |
 ### 4.1.2 目录结构
-确保目录结构如下：
+确保目录结构如下:
 quic
-
 |-- BeQuic
-
 |-- chromium
-
 `-- FFmpeg
 ### 4.1.3 编译bequic
 #### 4.1.3.1 下载bequic源码
@@ -169,11 +166,8 @@ make && make install
 ### 4.2.2 目录结构
 确保目录结构如下：
 quic
-
 |-- BeQuic
-
 |-- chromium
-
 `-- FFmpeg
 ### 4.2.3 编译bequic
 #### 4.2.3.1 下载bequic源码
