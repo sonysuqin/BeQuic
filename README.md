@@ -155,10 +155,78 @@ cd build
 make && make install
 ```
 注意把chromium/src/out/Debug/libbequic.dll拷贝到ffplay运行目录。
-## 4.2 TBD
-Linux、Android、iOS、Mac OSX.
+## 4.2 Android
+### 4.2.1 编译环境
+| 软件| 版本|
+|:--|:--|
+| Ubuntu | 16.04 |
+| NDK |  r17c |
+| Chromium |  最新版，版本号e57cf4b40708a719439ad3895279b7de1feb62a8|
+| FFMpeg |  4.1.quic |
+### 4.2.2 目录结构
+确保目录结构如下：
+quic
+|-- BeQuic
+|-- chromium
+`-- FFmpeg
+### 4.2.3 编译bequic
+#### 4.2.3.1 下载bequic源码
+在quic目录下，执行：
+```
+git clone https://github.com/sonysuqin/BeQuic.git
+```
+#### 4.2.3.2 下载chromium源码
+在quic目录下，按照chromium的[官方编译文档](https://chromium.googlesource.com/chromium/src/+/master/docs/android_build_instructions.md)，下载chromium代码(需要一个比较好的VPN)。
+#### 4.2.3.3 打bequic补丁
+进入BeQuic/patch目录下，执行
+```
+mv BUILD.gn BUILD.gn.bak
+mv BUILD.gn.Android BUILD.gn
+./patch.sh
+mv BUILD.gn BUILD.gn.Android
+mv BUILD.gn.bak BUILD.gn
+```
+目的：
+* 将BeQuic/patch/BUILD.gn.Android覆盖chromium/src/net目录下的BUILD.gn文件；
+* 把BeQuic/src/chromium下的文件拷贝到chromium/src/net/tools/quic目录下；
+
+> 补丁并不修改chromium的源代码。
+
+#### 4.2.3.4 生成工程
+在chromium/src下执行：
+```
+gn gen out/Release --args="is_debug=false is_component_build=false target_os=\"android\"  target_cpu=\"arm\""
+```
+这里可以决定是产生Debug版还是Release版。
+#### 4.2.3.5 编译 bequic库
+在chromium/src下执行：
+
+```
+ninja -C out/Release libbequic
+```
+### 4.2.4 编译FFmpeg
+#### 4.2.4.1 下载支持bequic的FFmpeg源码
+在quic目录下，执行
+
+```
+git clone https://github.com/sonysuqin/FFmpeg.git
+```
+
+#### 4.2.4.2 编译
+在FFmpeg/build目录下，执行：
+
+```
+./build_android.sh
+```
+在编译脚本中，需要指定NDK工具链的路径，libbequic库的头文件、库路径等(如果按照上述目录结构就不用修改)，脚本会将编译产生的所有输出放在当前目录的android目录下。
+#### 4.2.4.3 Androd端简单测试
+用Android Studio(3.4)打开BeQuic/test/android目录下的TestFFmpegQuic工程，将4.2.4.2节编译产生的所有.so库拷贝到BeQuic/test/android/TestFFmpegQuic/FFmpegQuic/src/main/jni/FFmpeg/lib/armeabi-v7a目录下，连接Android手机，编译、运行。
+
+### 4.3 TBD
+Linux(已完工)、iOS、Mac OSX.
+
 # 5 测试
-在Google的[Playing With QUIC](https://www.chromium.org/quic/playing-with-quic)页面有测试的详细介绍。
+在Google的[Playing With QUIC](https://www.chromium.org/quic/playing-with-quic)页面有测试的详细介绍，这里只介绍Windows端的测试步骤，Linux、Mac OSX的步骤类似，都是用ffplay播放，Android、iOS平台没有编译ffplay，只是写了简单的测试程序调用FFmpeg的API，通过QUIC协议获取到数据即可。
 ## 5.1 准备测试文件
 ### 5.1.1 准备文件源
 另外准备一个HTTP服务，例如nginx，假设其地址为192.168.116.133，在其html根目录放置一个文件：1.mp4；
