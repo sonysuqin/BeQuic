@@ -3577,7 +3577,7 @@ if (!is_ios) {
       "//build/win:default_exe_manifest",
       "//url",
     ]
-    defines = [ "BE_QUIC_EXPORTS", "BE_QUIC_SHARED_LIBRARY" ]
+    defines = [ "BE_QUIC_EXPORTS", "BE_QUIC_SHARED_LIBRARY", "__GLIBC_HAVE_LONG_LONG" ]
     #complete_static_lib=true
   }
 }

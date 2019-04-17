@@ -42,8 +42,6 @@
 		77E1F9FE2264A16F0095FD06 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		77E1FA002264A16F0095FD06 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		77E1FA012264A16F0095FD06 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
-		77E1FA182265E4E10095FD06 /* be_quic.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = be_quic.h; sourceTree = "<group>"; };
-		77E1FA192265E4E10095FD06 /* be_quic_define.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = be_quic_define.h; sourceTree = "<group>"; };
 		77E1FA262266BDF00095FD06 /* libbequic.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libbequic.dylib; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -103,8 +101,6 @@
 		77E1FA172265E4E10095FD06 /* libs */ = {
 			isa = PBXGroup;
 			children = (
-				77E1FA182265E4E10095FD06 /* be_quic.h */,
-				77E1FA192265E4E10095FD06 /* be_quic_define.h */,
 				77E1FA262266BDF00095FD06 /* libbequic.dylib */,
 			);
 			name = libs;
@@ -349,6 +345,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				TARGETED_DEVICE_FAMILY = 1;
+				USER_HEADER_SEARCH_PATHS = /Users/testtest/lifangda/work/chromium/src/net/tools/quic;
 				VALID_ARCHS = arm64;
 			};
 			name = Debug;
@@ -380,6 +377,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				TARGETED_DEVICE_FAMILY = 1;
+				USER_HEADER_SEARCH_PATHS = /Users/testtest/lifangda/work/chromium/src/net/tools/quic;
 				VALID_ARCHS = arm64;
 			};
 			name = Release;

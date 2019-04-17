@@ -395,7 +395,7 @@ int BeQuicClient::internal_request(
         if (!spdy_quic_client_->Connect()) {
             ret = kBeQuicErrorCode_Connect_Fail;
             quic::QuicErrorCode error = spdy_quic_client_->session()->error();
-            LOG(ERROR) << "BeQuic connect error " << error << std::endl;
+            LOG(ERROR) << "BeQuic connect error " << quic:QuicErrorCodeToString(error) << std::endl;
             break;
         }
 
