@@ -7,7 +7,9 @@ QUIC的主要优点是减少握手延迟(号称0RTT)、出色的流控(BBR、CUB
 本文介绍了基于Google的QUIC协议封装的bequic库，并集成到FFmpeg中，让FFmpeg可以通过QUIC协议播放视频。
 # 2 代码地址
 bequic：
+
 [https://github.com/sonysuqin/BeQuic](https://github.com/sonysuqin/BeQuic)
+
 FFmpeg：
 [https://github.com/sonysuqin/FFmpeg](https://github.com/sonysuqin/FFmpeg)
 # 3 方案
@@ -73,6 +75,7 @@ bequic库封装了Google Chromium Quiche库，对外提供C的接口，因此需
 | FFMpeg |  4.1 |
 ### 4.1.2 目录结构
 确保目录结构如下：
+
 ```
 quic
 |-- BeQuic
@@ -226,8 +229,170 @@ git clone https://github.com/sonysuqin/FFmpeg.git
 #### 4.2.4.3 Androd端简单测试
 用Android Studio(3.4)打开BeQuic/test/android目录下的TestFFmpegQuic工程，将4.2.4.2节编译产生的所有.so库拷贝到BeQuic/test/android/TestFFmpegQuic/FFmpegQuic/src/main/jni/FFmpeg/lib/armeabi-v7a目录下，连接Android手机，编译、运行。
 
-### 4.3 TBD
-Linux(已完工)、iOS、Mac OSX.
+
+## 4.3 Linux
+### 4.3.1 编译环境
+| 软件| 版本|
+|:--|:--|
+| Ubuntu| 16.04 |
+| clang|  3.8.0-2ubuntu4 |
+| Chromium |  最新版，版本号ec12ef7159674fc37fd340f12aeb81fccfb547a6 |
+| FFMpeg |  4.1.quic |
+### 4.3.2 目录结构
+确保目录结构如下
+```
+quic
+|-- BeQuic
+|-- chromium
+`-- FFmpeg
+```
+### 4.3.3 编译bequic
+#### 4.3.3.1 下载bequic源码
+创建并进入quic目录，执行
+```
+git clone https://github.com/sonysuqin/BeQuic.git
+```
+#### 4.3.3.2 下载chromium源码
+在quic目录下，按照chromium的官方[编译文档](https://chromium.googlesource.com/chromium/src/+/master/docs/linux_build_instructions.md)，下载chromium代码(需要一个比较好的VPN)。
+#### 4.3.3.3 打bequic补丁
+进入BeQuic/patch目录下，执行
+```
+./patch.sh
+```
+目的：
+- 将BeQuic/patch/BUILD.gn覆盖chromium/src/net目录下的BUILD.gn文件；
+- 把BeQuic/src/chromium下的文件拷贝到chromium/src/net/tools/quic目录下；
+>补丁并不修改chromium的源代码。
+#### 4.3.3.4 生成工程
+在chromium/src下执行：
+```
+gn gen out/linux_release_x64_notcmalloc --args="is_debug=false is_component_build=false target_os=\"linux\" target_cpu=\"x64\" use_allocator=\"none\""
+```
+这里可以决定是产生Debug版还是Release版；
+user_allocator="none" ：表示编译时malloc等系统库使用系统库函数，而不调用chromium自己实现的tcmalloc。
+#### 4.3.3.5 编译bequic库
+在chromium/src下执行：
+
+```
+ninja -C out/linux_release_x64_notcmalloc libbequic
+```
+### 4.3.4 编译FFmpeg
+#### 4.3.4.1 下载支持bequic的FFmpeg源码
+在quic目录下，执行
+
+```
+git clone https://github.com/sonysuqin/FFmpeg.git
+```
+切换ffmepg版本为： **4.1.quic** 
+#### 4.3.4.2 configure
+在FFmpeg下创建build目录，并进入FFmpeg/build目录，执行
+
+```
+../configure --disable-static --enable-shared --enable-gpl --enable-version3 --enable-sdl --enable-debug=3 --disable-optimizations --disable-mmx --disable-stripping --arch=x64 --enable-libbequic --extra-cflags="-I../../quic/chromium/src/net/tools/quic -fPIC" --extra-ldflags="-L../../quic/chromium/src/out/linux_release_x64 -fPIC" --extra-libs=-lbequic --prefix=../linux
+```
+注意修改–extra-cflags、–extra-ldflags为实际的bequic库的头文件、库文件的路径.。
+#### 4.3.4.3 编译
+在FFmpeg/build目录下，执行
+
+```
+make && make install
+```
+#### 4.3.4.4 测试
+将libbequic.so拷贝到FFmpeg/build/lib下，执行
+
+```
+export LD_LIBRARY_PATH=<filepath>/ffmpeg/build/lib
+```
+然后在FFmpeg/build执行
+
+```
+./ffplay quic://www.example.org:6121 -timeout 1000 -verify_certificate 1
+```
+## 4.4 ios
+### 4.4.1 编译环境
+| 软件| 版本|
+|:--|:--|
+| mac| 10.14 |
+| clang|  x86_64-apple-darwin18.0.0|
+| Chromium |  最新版，版本号eca01417caf1e26ce41c88f2804291ddee75f5ed|
+| xcode | 10.1 |
+### 4.4.2 目录结构
+确保目录结构如下
+```
+quic
+|-- BeQuic
+|-- chromium
+```
+### 4.4.3 编译bequic
+#### 4.4.3.1 下载bequic源码
+在quic目录下，执行：
+```
+git clone https://github.com/sonysuqin/BeQuic.git
+```
+#### 4.4.3.2 下载chromium源码
+在quic目录下，按照chromium的官方[编译文档](https://chromium.googlesource.com/chromium/src/+/master/docs/ios/build_instructions.md)，下载chromium代码(需要一个比较好的VPN)。
+#### 4.4.3.3 打bequic补丁
+进入BeQuic/patch目录下，执行
+
+```
+mv BUILD.gn BUILD.gn.bak
+mv BUILD.gn.ios BUILD.gn
+./patch.sh
+mv BUILD.gn BUILD.gn.ios
+mv BUILD.gn.bak BUILD.gn
+```
+目的：
+- 将BeQuic/patch/BUILD.gn.ios覆盖chromium/src/net目录下的BUILD.gn文件；
+- 把BeQuic/src/chromium下的文件拷贝到chromium/src/net/tools/quic目录下；
+
+>补丁并不修改chromium的源代码。
+#### 4.4.3.4 生成工程
+在chromium/src下执行：
+```
+gn gen out/ios_arm64_shared --args="is_debug=false is_component_build=false target_os=\"ios\" target_cpu=\"arm64\" ios_code_signing_identity=\"DB1A2124EA21DA7F2BECD69186C8DCFB4A1B7CC7\"" --ide=xcode
+```
+ios_code_signing_identity代表签名，使用下面命令查看本机所有签名
+```
+find-identity -v -p codesigning
+```
+#### 4.4.3.5 编译bequic库
+在chromium/src下执行
+
+```
+ninja -C out/ios_arm64_shared libbequic
+```
+注意：如果使用编译后的库，程序可以正常调用，但是执行后会出现下面的错误：
+*dyld: (Library not loaded: ./libbequic.dylib ... Reason: image not found)*
+在终端下查看，执行
+```
+$otool -L libbequic.dylib 
+		libbequic.dylib:
+			./libbequic.dylib (compatibility version 0.0.0, current version 0.0.0)
+			/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation (compatibility version 150.0.0, current version 1560.10.0)
+			/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics (compatibility version 64.0.0, current version 1245.9.2)
+			/System/Library/Frameworks/CoreText.framework/CoreText (compatibility version 1.0.0, current version 1.0.0)
+			/System/Library/Frameworks/Foundation.framework/Foundation (compatibility version 300.0.0, current version 1560.10.0)
+			/System/Library/Frameworks/UIKit.framework/UIKit (compatibility version 1.0.0, current version 61000.0.0)
+			/System/Library/Frameworks/CFNetwork.framework/CFNetwork (compatibility version 1.0.0, current version 975.0.3)
+			/System/Library/Frameworks/MobileCoreServices.framework/MobileCoreServices (compatibility version 1.0.0, current version 935.2.0)
+			/System/Library/Frameworks/Security.framework/Security (compatibility version 1.0.0, current version 58286.222.2)
+			/System/Library/Frameworks/SystemConfiguration.framework/SystemConfiguration (compatibility version 1.0.0, current version 963.200.27)
+			/usr/lib/libresolv.9.dylib (compatibility version 1.0.0, current version 1.0.0)
+			/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1252.200.5)
+			/usr/lib/libobjc.A.dylib (compatibility version 1.0.0, current version 228.0.0)
+```
+> ios动态库的链接路径不能使用相对路径，否则无法找到链接文件。
+
+修改动态库的查找路径
+```
+install_name_tool -id @rpath/libbequic.dylib libbequic.dylib
+```
+再用命令otool -L libbequic.dylib查看，发现已经修改。
+### 4.4.4 编译测试程序
+使用xcode打开Bequic/test/ios/quic_shared_test/quic_test.xcodeproj，编译后测试。
+
+## 4.5 TBD
+Mac OSX.
 
 # 5 测试
 在Google的[Playing With QUIC](https://www.chromium.org/quic/playing-with-quic)页面有测试的详细介绍，这里只介绍Windows端的测试步骤，Linux、Mac OSX的步骤类似，都是用ffplay播放，Android、iOS平台没有编译ffplay，只是写了简单的测试程序调用FFmpeg的API，通过QUIC协议获取到数据即可。
