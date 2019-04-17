@@ -10,6 +10,7 @@
 #include "net/http/transport_security_state.h"
 #include "net/quic/crypto/proof_verifier_chromium.h"
 #include "net/spdy/spdy_http_utils.h"
+#include "net/dns/host_resolver_proc.h"
 #include "net/tools/quic/synchronous_host_resolver.h"
 #include "net/third_party/quiche/src/quic/core/quic_error_codes.h"
 #include "net/third_party/quiche/src/quic/core/quic_packets.h"
@@ -326,10 +327,23 @@ int BeQuicClient::internal_request(
 
             IPAddress addr(atoi(numbers[0].c_str()), atoi(numbers[1].c_str()), atoi(numbers[2].c_str()), atoi(numbers[3].c_str()));
             addresses = AddressList::CreateFromIPAddress(addr, port);
-        } else if (net::SynchronousHostResolver::Resolve(host, &addresses) != net::OK) {
-            //Resolve host to address synchronously.
-            ret = kBeQuicErrorCode_Resolve_Fail;
-            break;
+        } else {
+#ifdef ANDROID
+            int os_error = 0;
+            SystemHostResolverCall(host, ADDRESS_FAMILY_UNSPECIFIED, 0, &addresses, &os_error);
+            if (os_error != 0) {
+                LOG(ERROR) << "SystemHostResolverCall error " << os_error << std::endl;
+                ret = kBeQuicErrorCode_Resolve_Fail;
+                break;
+            }
+            LOG(INFO) << "Android resolve success." << std::endl;
+#else
+            if (net::SynchronousHostResolver::Resolve(host, &addresses) != net::OK) {
+                //Resolve host to address synchronously.
+                ret = kBeQuicErrorCode_Resolve_Fail;
+                break;
+            }
+#endif
         }
 
         //Make up QuicIpAddress.
