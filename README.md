@@ -167,10 +167,12 @@ make && make install
 | FFMpeg |  4.1.quic |
 ### 4.2.2 目录结构
 确保目录结构如下：
+```
 quic
 |-- BeQuic
 |-- chromium
 `-- FFmpeg
+```
 ### 4.2.3 编译bequic
 #### 4.2.3.1 下载bequic源码
 在quic目录下，执行：
