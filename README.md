@@ -308,7 +308,7 @@ export LD_LIBRARY_PATH=<filepath>/ffmpeg/build/lib
 ```
 ./ffplay quic://www.example.org:6121 -timeout 1000 -verify_certificate 1
 ```
-## 4.4 i
+## 4.4 iOS
 ### 4.4.1 编译环境
 | 软件| 版本|
 |:--|:--|
