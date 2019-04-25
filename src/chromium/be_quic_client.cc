@@ -58,6 +58,9 @@ int BeQuicClient::open(
     std::vector<InternalQuicHeader> headers,
     const std::string& body,
     bool verify_certificate,
+    int ietf_draft_version,
+    int handshake_version,
+    int transport_version,
     int timeout) {
     int ret = 0;
     do {
@@ -79,6 +82,9 @@ int BeQuicClient::open(
         headers_            = headers;
         body_               = body;
         verify_certificate_ = verify_certificate;
+        ietf_draft_version_ = ietf_draft_version;
+        handshake_version_  = handshake_version;
+        transport_version_  = transport_version;
 
         //Create promise for blocking wait.
         if (timeout != 0) {
@@ -235,7 +241,10 @@ void BeQuicClient::Run() {
             method_,
             headers_,
             body_,
-            verify_certificate_);
+            verify_certificate_,
+            ietf_draft_version_,
+            handshake_version_,
+            transport_version_);
         if (ret != kBeQuicErrorCode_Success) {
             break;
         }
@@ -264,6 +273,9 @@ void BeQuicClient::Run() {
     method_                 = "";
     body_                   = "";
     verify_certificate_     = true;
+    ietf_draft_version_     = 0;
+    handshake_version_      = 0;
+    transport_version_      = 0;
     headers_.clear();
 
     LOG(INFO) << "Thread handle " << handle_ << " exit." << std::endl;
@@ -301,7 +313,10 @@ int BeQuicClient::internal_request(
     const std::string& method,
     std::vector<InternalQuicHeader> headers,
     const std::string& body,
-    bool verify_certificate) {
+    bool verify_certificate,
+    int ietf_draft_version,
+    int handshake_version,
+    int transport_version) {
     int ret = kBeQuicErrorCode_Success;
     do {
         //Parse host and port from url.
@@ -336,7 +351,6 @@ int BeQuicClient::internal_request(
                 ret = kBeQuicErrorCode_Resolve_Fail;
                 break;
             }
-            LOG(INFO) << "Android resolve success." << std::endl;
 #else
             if (net::SynchronousHostResolver::Resolve(host, &addresses) != net::OK) {
                 //Resolve host to address synchronously.
@@ -354,7 +368,17 @@ int BeQuicClient::internal_request(
         quic::QuicServerId serverId(gurl.host(), gurl.EffectiveIntPort(), net::PRIVACY_MODE_DISABLED);
 
         //Get Quic version.
-        quic::ParsedQuicVersionVector versions = quic::CurrentSupportedVersions();
+        quic::ParsedQuicVersionVector versions;
+        if (transport_version_ == -1) {
+            versions = quic::CurrentSupportedVersions();
+        } else {
+            versions.emplace_back((quic::HandshakeProtocol)handshake_version_, (quic::QuicTransportVersion)transport_version_);
+        }
+
+        for (auto iter = versions.begin(); iter != versions.end(); ++iter) {
+            LOG(INFO) << "Version supported:" << std::endl;
+            LOG(INFO) << "Handshake version:" << iter->handshake_protocol << ", transport version:" << iter->transport_version << std::endl;
+        }
 
         //Create certificate verifier.
         std::unique_ptr<CertVerifier>           cert_verifier(CertVerifier::CreateDefault());
@@ -384,12 +408,16 @@ int BeQuicClient::internal_request(
         //Set MTU.
         spdy_quic_client_->set_initial_max_packet_length(quic::kDefaultMaxPacketSize);
 
+        LOG(INFO) << "Initializing!" << std::endl;
+
         //Initialize quic client.
         if (!spdy_quic_client_->Initialize()) {
             ret = kBeQuicErrorCode_Fatal_Error;
             LOG(ERROR) << "Failed to initialize bequic client." << std::endl;
             break;
         }
+
+        LOG(INFO) << "Initialized!" << std::endl;
 
         //Do connecting and handshaking.
         if (!spdy_quic_client_->Connect()) {
@@ -404,7 +432,14 @@ int BeQuicClient::internal_request(
         header_block_[":method"]      = method;
         header_block_[":scheme"]      = gurl.scheme();
         header_block_[":authority"]   = gurl.host();
-        header_block_[":path"]        = gurl.path();
+        std::string path;
+        if (gurl.has_query()) {
+            path = gurl.path() + "?" + gurl.query();
+        } else {
+            path = gurl.path();
+        }
+        header_block_[":path"]        = path;
+        LOG(INFO) << "path: " << path << std::endl;
 
         for (size_t i = 0; i < headers.size(); ++i) {
             InternalQuicHeader &header = headers[i];
@@ -420,7 +455,12 @@ int BeQuicClient::internal_request(
         }
 
         spdy_quic_client_->set_store_response(true);
+
+        LOG(INFO) << "SendRequesting!" << std::endl;
+
         spdy_quic_client_->SendRequest(header_block_, body, true);
+
+        LOG(INFO) << "SendRequested!" << std::endl;
 
         /*
         //For small file.

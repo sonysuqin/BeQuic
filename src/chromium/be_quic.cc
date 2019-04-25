@@ -38,6 +38,9 @@ int BE_QUIC_CALL be_quic_open(
     const char *body,
     int body_size,
     int verify_certificate,
+    int ietf_draft_version,
+    int handshake_version,
+    int transport_version,
     int timeout) {
     int ret = kBeQuicErrorCode_Success;
     do {
@@ -74,7 +77,20 @@ int BE_QUIC_CALL be_quic_open(
             ret = kBeQuicErrorCode_Invalid_Url;
             break;
         }
+
+        //Check version.
+        if (handshake_version < quic::PROTOCOL_UNSUPPORTED || handshake_version > quic::PROTOCOL_TLS1_3) {
+            ret = kBeQuicErrorCode_Invalid_Version;
+            LOG(ERROR) << "handshake_version is Invalid. version = " << handshake_version << std::endl;
+            break;
+        }
         
+        if (transport_version != -1 && (transport_version < quic::QUIC_VERSION_39 || transport_version > quic::QUIC_VERSION_99)) {
+            ret = kBeQuicErrorCode_Invalid_Version;
+            LOG(ERROR) << "transport_version is Invalid. version = " << transport_version << std::endl;
+            break;
+        }
+
         //Create BeQuic client.
         net::BeQuicClient::Ptr client = net::BeQuicClientManager::instance()->create_client();
         if (client == NULL) {
@@ -107,6 +123,9 @@ int BE_QUIC_CALL be_quic_open(
             header_vec,
             body_str,
             (verify_certificate <= 0) ? true : false,
+            ietf_draft_version,
+            handshake_version,
+            transport_version,
             timeout);
         if (rv != kBeQuicErrorCode_Success) {
             net::BeQuicClientManager::instance()->close_and_release_client(ret);

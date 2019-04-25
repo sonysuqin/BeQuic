@@ -41,6 +41,9 @@ public:
         std::vector<InternalQuicHeader> headers,
         const std::string& body,
         bool verify_certificate,
+        int ietf_draft_version,
+        int handshake_version,
+        int transport_version,
         int timeout);
 
     void close();
@@ -69,7 +72,10 @@ private:
         const std::string& method,
         std::vector<InternalQuicHeader> headers,
         const std::string& body,
-        bool verify_certificate);
+        bool verify_certificate,
+        int ietf_draft_version,
+        int handshake_version,
+        int transport_version);
 
 private:
     int handle_ = -1;
@@ -82,6 +88,9 @@ private:
     std::vector<InternalQuicHeader> headers_;
     std::string body_;
     bool verify_certificate_ = true;
+    int ietf_draft_version_ = 0;
+    int handshake_version_ = 0;
+    int transport_version_ = 0;
     std::shared_ptr<std::promise<int> > open_promise_;
     std::shared_ptr<std::promise<int64_t> > seek_promise_;
     std::atomic_bool busy_;

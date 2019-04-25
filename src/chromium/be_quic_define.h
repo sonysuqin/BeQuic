@@ -102,7 +102,9 @@ typedef enum BeQuicErrorCode {
     kBeQuicErrorCode_Invalid_Method     = -16,      //!< Invalid quic method.
     kBeQuicErrorCode_Thread_Not_Running = -17,      //!< Thread not running.
     kBeQuicErrorCode_Buffer_Not_Hit     = -18,      //!< Seek request not hit the buffer.
-    kBeQuicErrorCode_Count              = 19        //!< Error code count.
+    kBeQuicErrorCode_Invalid_Version    = -19,      //!< Invalid Version.
+    kBeQuicErrorCode_Not_Supported      = -20,      //!< Operation not supported.
+    kBeQuicErrorCode_Count              = 21        //!< Error code count.
 }BeQuicErrorCode;
 
 /// BeQuic Header struct defination.

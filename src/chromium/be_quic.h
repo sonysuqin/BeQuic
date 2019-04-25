@@ -23,10 +23,13 @@ extern "C" {
  *  @param  port                Mapped port of endpoint in url.
  *  @param  method              Quic request method, only "GET" and "POST" supported, if NULL, default to "GET".
  *  @param  headers             Quic request headers array pointer.
- *  @param  headers_num         Quic request headers array size.
+ *  @param  header_num          Quic request headers array size.
  *  @param  body                Quic request body buffer pointer of "POST" method.
  *  @param  body_size           Quic request body buffer size of "POST" method.
  *  @param  verify_certificate  Whether to verify certificate, 1:verify, 0:not verify.
+ *  @param  ietf_draft_version  if use ietf, can set ietf draft version, 0 ~ 256.
+ *  @param  handshake_version   The crypto handshake protocols that can be used with QUIC, 1: crypto, 2: TLS1.3.
+ *  @param  transport_version   A parsed QUIC version label which determines that transport protocol, -1: all support, other: designation.
  *  @param  timeout             If quic session not established in timeout ms, will return timeout error.
  *  @return BeQuic session handle if > 0, otherwise, return error code.
  *  @note   This method will do resolving, connecting, handshaking and sending request.
@@ -41,6 +44,9 @@ BE_QUIC_API int BE_QUIC_CALL be_quic_open(
     const char *body,
     int body_size,
     int verify_certificate,
+    int ietf_draft_version,
+    int handshake_version,
+    int transport_version,
     int timeout);
 
 /**
