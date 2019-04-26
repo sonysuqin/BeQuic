@@ -101,7 +101,7 @@ int BeQuicClient::open(
         }
 
         //Wait forever if timeout set to -1.
-        std::shared_future<int> future = open_promise_->get_future();
+        IntFuture future = open_promise_->get_future();
         if (timeout < 0) {
             ret = future.get(); //Blocking.
             break;
@@ -218,12 +218,21 @@ int64_t BeQuicClient::seek_from_net(int64_t off) {
             break;
         }
 
+        if (!spdy_quic_client_->connected()) {
+            if (spdy_quic_client_->Connect()) {
+                LOG(INFO) << "Reconnect success." << std::endl;
+            } else {
+                LOG(ERROR) << "Reconnect failed." << std::endl;
+                break;
+            }
+        }
+
         //Not test this yet, for server not supported currently.
         spdy_quic_client_->close_current_stream();
 
         std::ostringstream os;
         os << "bytes=" << off << "-";
-        header_block_["range"] = os.str();
+        header_block_["Range"] = os.str();
 
         spdy_quic_client_->SendRequest(header_block_, "", true);
         ret = off;
