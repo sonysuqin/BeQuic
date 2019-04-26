@@ -129,7 +129,7 @@ copy ..\..\..\..\chromium\src\out\$(ConfigurationName)\libbequic.dll.pdb $(Confi
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>..\..\..\..\chromium\src\net\tools\quic;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -139,11 +139,10 @@ copy ..\..\..\..\chromium\src\out\$(ConfigurationName)\libbequic.dll.pdb $(Confi
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>..\..\..\..\chromium\src\out\$(ConfigurationName);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>be_quic.dll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libbequic.dll.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>copy ..\..\..\..\chromium\src\out\$(ConfigurationName)\be_quic.dll $(ConfigurationName)\
-copy ..\..\..\..\chromium\src\out\$(ConfigurationName)\be_quic.dll.pdb $(ConfigurationName)\</Command>
+      <Command>copy ..\..\..\..\chromium\src\out\$(ConfigurationName)\libbequic.dll $(ConfigurationName)\</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
