@@ -48,6 +48,7 @@ private:
     boost::asio::streambuf response_buff_;
     std::istream istream_;
     std::ostream ostream_;
+    bool got_first_data_ = false;
     int64_t content_length_ = -1;
     int64_t read_offset_ = 0;
     quic::QuicStreamId current_stream_id_ = 0;

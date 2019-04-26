@@ -52,7 +52,7 @@ int BeQuicSpdyClient::read_body(unsigned char *buf, int size, int timeout) {
             break;
         }
 
-        //TBD:Trunk?
+        //TBD:Chunk?
         if (content_length_ > 0 && read_offset_ >= content_length_) {
             ret = kBeQuicErrorCode_Eof;
             break;
@@ -86,7 +86,11 @@ int BeQuicSpdyClient::read_body(unsigned char *buf, int size, int timeout) {
 int64_t BeQuicSpdyClient::seek_in_buffer(int64_t off, int whence, int64_t *target_off) {
     std::unique_lock<std::mutex> lock(mutex_);
     if (!connected()) {
-        return kBeQuicErrorCode_Invalid_State;    
+        return kBeQuicErrorCode_Invalid_State;
+    }
+
+    if (content_length_ == -1) {
+        return kBeQuicErrorCode_Not_Supported;
     }
 
     if (whence == AVSEEK_SIZE) {
@@ -160,9 +164,10 @@ void BeQuicSpdyClient::on_data(quic::QuicSpdyClientStream *stream, char *buf, in
         LOG(INFO) << "Bound to stream " << current_stream_id_ << std::endl;
     }
     
-    if (content_length_ == -1) {
+    if (!got_first_data_) {
         quic::BeQuicSpdyClientStream* bequic_stream = static_cast<quic::BeQuicSpdyClientStream*>(stream);
         content_length_ = bequic_stream->content_length();
+        got_first_data_ = true;
     }
 
     if (buf != NULL && size > 0) {
@@ -179,7 +184,13 @@ bool BeQuicSpdyClient::is_buffer_sufficient() {
     bool ret = true;
     do {
         size_t size = response_buff_.size();
-        if (content_length_ <= 0 || size == 0) {
+        if (content_length_ == -1) {
+            //Cannot determine end of stream, so if some data exists just return true for safe.
+            ret = size > 0;
+            break;
+        }
+
+        if (size == 0) {
             ret = false;
             break;
         }

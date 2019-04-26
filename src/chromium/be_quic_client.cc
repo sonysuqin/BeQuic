@@ -273,9 +273,9 @@ void BeQuicClient::Run() {
     method_                 = "";
     body_                   = "";
     verify_certificate_     = true;
-    ietf_draft_version_     = 0;
-    handshake_version_      = 0;
-    transport_version_      = 0;
+    ietf_draft_version_     = -1;
+    handshake_version_      = -1;
+    transport_version_      = -1;
     headers_.clear();
 
     LOG(INFO) << "Thread handle " << handle_ << " exit." << std::endl;
@@ -369,15 +369,17 @@ int BeQuicClient::internal_request(
 
         //Get Quic version.
         quic::ParsedQuicVersionVector versions;
-        if (transport_version_ == -1) {
+        if (transport_version == -1) {
             versions = quic::CurrentSupportedVersions();
         } else {
-            versions.emplace_back((quic::HandshakeProtocol)handshake_version_, (quic::QuicTransportVersion)transport_version_);
+            versions.emplace_back(
+                static_cast<quic::HandshakeProtocol>(handshake_version), 
+                static_cast<quic::QuicTransportVersion>(transport_version));
         }
 
         for (auto iter = versions.begin(); iter != versions.end(); ++iter) {
-            LOG(INFO) << "Version supported:" << std::endl;
-            LOG(INFO) << "Handshake version:" << iter->handshake_protocol << ", transport version:" << iter->transport_version << std::endl;
+            LOG(INFO) << "Handshake version:" << iter->handshake_protocol 
+                      << ", transport version:" << iter->transport_version << std::endl;
         }
 
         //Create certificate verifier.

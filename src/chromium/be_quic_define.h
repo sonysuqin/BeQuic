@@ -117,4 +117,11 @@ typedef struct BeQuicHeader {
 typedef void (*BeQuicLogCallback)(
     const char* severity, const char* file, int line, const char* msg);
 
+/// Quic handshake protocol defination.
+typedef enum BeQuicHandshakeProtocol {
+    kBeQuic_Handshake_Protocol_Unsupported = 0,
+    kBeQuic_Handshake_Protocol_Quic_Crypto,
+    kBeQuic_Handshake_Protocol_TLS_1_3,
+}BeQuicHandshakeProtocol;
+
 #endif // #ifndef __BE_QUIC_DEFINE_H__

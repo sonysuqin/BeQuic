@@ -87,10 +87,10 @@ private:
     std::string method_;
     std::vector<InternalQuicHeader> headers_;
     std::string body_;
-    bool verify_certificate_ = true;
-    int ietf_draft_version_ = 0;
-    int handshake_version_ = 0;
-    int transport_version_ = 0;
+    bool verify_certificate_    = true;
+    int ietf_draft_version_     = -1;
+    int handshake_version_      = -1;
+    int transport_version_      = -1;
     std::shared_ptr<std::promise<int> > open_promise_;
     std::shared_ptr<std::promise<int64_t> > seek_promise_;
     std::atomic_bool busy_;

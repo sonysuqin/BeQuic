@@ -29,7 +29,7 @@ void BeQuicSpdyClientStream::OnInitialHeadersComplete(
 void BeQuicSpdyClientStream::OnBodyAvailable() {
     if (visitor() == nullptr) {
         return;
-    }    
+    }
 
     while (HasBytesToRead()) {
         struct iovec iov;
@@ -69,7 +69,15 @@ void BeQuicSpdyClientStream::check_content_length() {
     const spdy::SpdyHeaderBlock& headers = QuicSpdyClientStream::response_headers();
     if (QuicContainsKey(headers, "content-length")) {
         SpdyUtils::ExtractContentLengthFromHeaders(&content_length_, (spdy::SpdyHeaderBlock*)&headers);
-    }   
+    }
+
+#ifdef _DEBUG
+    LOG(INFO) << "Headers: " << std::endl;
+    auto iter = headers.begin();
+    for (;iter != headers.end();++iter) {
+        LOG(INFO) << iter->first << ": " << iter->second << std::endl;
+    }
+#endif
 }
 
 }  // namespace quic

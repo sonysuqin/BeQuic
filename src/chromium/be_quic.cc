@@ -21,7 +21,22 @@ bool internal_log_callback(int severity, const char* file, int line, size_t mess
     if (g_external_log_callback != NULL) {
         g_external_log_callback(severities[severity + 1], file, line, msg.c_str());
     } else {
-        printf("[%s][%s:%d] %s", severities[severity + 1], file, line, msg.c_str());
+        base::Time t = base::Time::NowFromSystemTime();
+        base::Time::Exploded exploded;
+        t.LocalExplode(&exploded);
+        
+        printf("[%d-%d-%d %d:%d:%d.%d][%s][%s:%d] %s", 
+            exploded.year,
+            exploded.month,
+            exploded.day_of_month,
+            exploded.hour,
+            exploded.minute,
+            exploded.second,
+            exploded.millisecond,
+            severities[severity + 1],
+            file,
+            line,
+            msg.c_str());
     }
 
     return true;
@@ -46,6 +61,10 @@ int BE_QUIC_CALL be_quic_open(
     do {
         static bool first_invoke = true;
         if (first_invoke) {
+#ifdef WIN32
+            WSADATA wsa_data;
+            WSAStartup(MAKEWORD(2,2), &wsa_data);
+#endif
             //Setup commanline.
             int argc = 1;
             const char *argv[1] = {"BeQuic"};
@@ -56,6 +75,9 @@ int BE_QUIC_CALL be_quic_open(
             settings.logging_dest = logging::LOG_TO_SYSTEM_DEBUG_LOG;
             CHECK(logging::InitLogging(settings));
             logging::SetLogMessageHandler(internal_log_callback);
+#ifdef _DEBUG
+            logging::SetMinLogLevel(logging::LOG_VERBOSE);
+#endif
 
             //Startup TaskScheduler.
             base::TaskScheduler::CreateAndStartWithDefaultParams("be_quic");
@@ -78,16 +100,17 @@ int BE_QUIC_CALL be_quic_open(
             break;
         }
 
-        //Check version.
-        if (handshake_version < quic::PROTOCOL_UNSUPPORTED || handshake_version > quic::PROTOCOL_TLS1_3) {
+        //Check handshake version.
+        if (handshake_version <= quic::PROTOCOL_UNSUPPORTED || handshake_version > quic::PROTOCOL_TLS1_3) {
             ret = kBeQuicErrorCode_Invalid_Version;
-            LOG(ERROR) << "handshake_version is Invalid. version = " << handshake_version << std::endl;
+            LOG(ERROR) << "Handshake version " << handshake_version << " is invalid."<< std::endl;
             break;
         }
         
+        //Check transport version.
         if (transport_version != -1 && (transport_version < quic::QUIC_VERSION_39 || transport_version > quic::QUIC_VERSION_99)) {
             ret = kBeQuicErrorCode_Invalid_Version;
-            LOG(ERROR) << "transport_version is Invalid. version = " << transport_version << std::endl;
+            LOG(ERROR) << "Transport version " << transport_version << " is invalid."<< std::endl;
             break;
         }
 

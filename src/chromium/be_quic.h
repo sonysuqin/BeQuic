@@ -27,9 +27,9 @@ extern "C" {
  *  @param  body                Quic request body buffer pointer of "POST" method.
  *  @param  body_size           Quic request body buffer size of "POST" method.
  *  @param  verify_certificate  Whether to verify certificate, 1:verify, 0:not verify.
- *  @param  ietf_draft_version  if use ietf, can set ietf draft version, 0 ~ 256.
- *  @param  handshake_version   The crypto handshake protocols that can be used with QUIC, 1: crypto, 2: TLS1.3.
- *  @param  transport_version   A parsed QUIC version label which determines that transport protocol, -1: all support, other: designation.
+ *  @param  ietf_draft_version  IETF draft version if IETF protocol enabled, valid 0 ~ 256, or -1 when use Google implement.
+ *  @param  handshake_version   Quic handshake protocol version, 1: Quic Crypto, 2: TLS1.3.
+ *  @param  transport_version   Quic transport protocol version, -1: chromium currently supported versions, other: specified version.
  *  @param  timeout             If quic session not established in timeout ms, will return timeout error.
  *  @return BeQuic session handle if > 0, otherwise, return error code.
  *  @note   This method will do resolving, connecting, handshaking and sending request.
