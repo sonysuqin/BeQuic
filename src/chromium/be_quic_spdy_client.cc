@@ -84,11 +84,8 @@ int BeQuicSpdyClient::read_body(unsigned char *buf, int size, int timeout) {
 }
 
 int64_t BeQuicSpdyClient::seek_in_buffer(int64_t off, int whence, int64_t *target_off) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    if (!connected()) {
-        return kBeQuicErrorCode_Invalid_State;
-    }
-
+    //Since calling from worker thread, lock is unnecessary.
+    //std::unique_lock<std::mutex> lock(mutex_);
     if (content_length_ == -1) {
         return kBeQuicErrorCode_Not_Supported;
     }

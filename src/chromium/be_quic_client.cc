@@ -21,7 +21,6 @@
 #include "net/third_party/quiche/src/quic/tools/quic_client_base.h"
 #include "net/third_party/quiche/src/spdy/core/spdy_header_block.h"
 #include "base/logging.h"
-#include "base/message_loop/message_loop.h"
 #include "base/strings/string_split.h"
 #include "url/gurl.h"
 
@@ -41,8 +40,7 @@ BeQuicClient::BeQuicClient(int handle)
     : base::SimpleThread("BeQuic"),
       handle_(handle),
       busy_(false),
-      running_(false),
-      seeking_(false) {
+      running_(false) {
     LOG(INFO) << "BeQuicClient created " << handle_ << std::endl;
 }
 
@@ -133,21 +131,26 @@ void BeQuicClient::close() {
         base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(50));
     }
 
-    //Notify stopping running.
-    if (true) {
-        std::unique_lock<std::mutex> lock(mutex_);
-        running_    = false;
-        busy_       = false;
-        cond_.notify_all();
+    //Stop message loop.
+    if (message_loop_ != NULL && run_loop_ != NULL) {
+        message_loop_->task_runner()->PostTask(FROM_HERE, run_loop_->QuitClosure());
     }
 
     //Wait for thread exit.
     Join();
+
+    //Set busy flag, the invoke thread can now call open again.
+    busy_ = false;
 }
 
 int BeQuicClient::read_body(unsigned char *buf, int size, int timeout) {
     int ret = 0;
     do {
+        if (!running_) {
+            ret = kBeQuicErrorCode_Invalid_State;
+            break;
+        }
+
         if (spdy_quic_client_ == NULL) {
             ret = kBeQuicErrorCode_Invalid_State;
             break;
@@ -161,6 +164,36 @@ int BeQuicClient::read_body(unsigned char *buf, int size, int timeout) {
 int64_t BeQuicClient::seek(int64_t off, int whence) {
     int64_t ret = -1;
     do {
+        if (!running_) {
+            ret = kBeQuicErrorCode_Invalid_State;
+            break;
+        }
+
+        if (message_loop_ == NULL) {
+            ret = kBeQuicErrorCode_Null_Pointer;
+            break;
+        }
+
+        IntPromisePtr promise(new IntPromise);
+        message_loop_->task_runner()->PostTask(
+            FROM_HERE,
+            base::BindOnce(
+                &BeQuicClient::seek_internal,
+                base::Unretained(this),
+                off,
+                whence,
+                promise));
+
+        IntFuture future = promise->get_future();
+        ret = future.get();
+        LOG(INFO) << "Seek " << off << " " << whence << " return " << ret << std::endl;
+    } while (0);
+    return ret;
+}
+
+void BeQuicClient::seek_internal(int64_t off, int whence, IntPromisePtr promise) {
+    int ret = -1;
+    do {
         if (spdy_quic_client_ == NULL) {
             ret = kBeQuicErrorCode_Invalid_State;
             break;
@@ -172,37 +205,16 @@ int64_t BeQuicClient::seek(int64_t off, int whence) {
             ret = seek_from_net(target_offset);
         }
     } while (0);
-    return ret;
+
+    if (promise != NULL) {
+        promise->set_value(ret);
+    }
 }
 
 int64_t BeQuicClient::seek_from_net(int64_t off) {
-    std::shared_ptr<std::promise<int64_t> > seek_promise(new std::promise<int64_t>);
-    std::shared_future<int64_t> future = seek_promise->get_future();
-    seek_promise_ = seek_promise;
-    seek_offset_ = off;
-    
-    if (true) {
-        std::unique_lock<std::mutex> lock(mutex_);
-        seeking_ = true;
-        cond_.notify_one();
-    }
-
-    int64_t ret = future.get();
-    return ret;
-}
-
-bool BeQuicClient::check_seeking() {
-    bool ret = true;
+    int64_t ret = -1;
     do {
-        if (!seeking_) {
-            ret = false;
-            break;
-        }
-
-        seeking_ = false;
-
-        if (spdy_quic_client_ == NULL || seek_offset_ < 0) {
-            ret = false;
+        if (spdy_quic_client_ == NULL || off < 0) {
             break;
         }
 
@@ -210,16 +222,12 @@ bool BeQuicClient::check_seeking() {
         spdy_quic_client_->close_current_stream();
 
         std::ostringstream os;
-        os << "bytes=" << seek_offset_ << "-";
+        os << "bytes=" << off << "-";
         header_block_["range"] = os.str();
 
         spdy_quic_client_->SendRequest(header_block_, "", true);
+        ret = off;
     } while (0);
-
-    if (seek_promise_ != NULL) {
-        seek_promise_->set_value(seek_offset_);
-        seek_promise_.reset();
-    }
     return ret;
 }
 
@@ -230,7 +238,12 @@ void BeQuicClient::Run() {
     running_ = true;
 
     //Bind message loop.
-    base::MessageLoopForIO message_loop;
+    std::unique_ptr<base::MessageLoopForIO> message_loop(new base::MessageLoopForIO);
+    std::unique_ptr<base::RunLoop> run_loop(new base::RunLoop);
+
+    //For invoking from another thread.
+    message_loop_   = message_loop.get();
+    run_loop_       = run_loop.get();
 
     do {
         //Internal request.
@@ -269,6 +282,7 @@ void BeQuicClient::Run() {
     }
 
     //Reset all members.
+    headers_.clear();
     url_                    = "";
     method_                 = "";
     body_                   = "";
@@ -276,34 +290,21 @@ void BeQuicClient::Run() {
     ietf_draft_version_     = -1;
     handshake_version_      = -1;
     transport_version_      = -1;
-    headers_.clear();
+    message_loop_           = NULL;
+    run_loop_               = NULL;
+    running_                = false;
 
     LOG(INFO) << "Thread handle " << handle_ << " exit." << std::endl;
 }
 
 void BeQuicClient::run_event_loop() {
     while (running_ && spdy_quic_client_ && spdy_quic_client_->WaitForEvents()) {
-        check_seeking();
+        //Do nothing.
     }
 }
 
 void BeQuicClient::run_idle_loop() {
-    do {
-        if (true) {
-            std::unique_lock<std::mutex> lock(mutex_);
-            while (running_ && !seeking_) {
-                cond_.wait(lock);
-            }
-
-            if (!running_) {
-                break;
-            }
-        }
-
-        if (check_seeking()) {
-            run_event_loop();
-        }
-    } while (running_);
+    run_loop_->Run();
 }
 
 int BeQuicClient::internal_request(
@@ -478,7 +479,7 @@ int BeQuicClient::internal_request(
         */
     } while (0);
 
-    //Causing invoke method out of block after connect and handshake finished.
+    //Causing invoke thread out of block after connect and handshake finished.
     if (open_promise_) {
         open_promise_->set_value(ret);
         open_promise_.reset();

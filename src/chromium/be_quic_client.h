@@ -4,6 +4,7 @@
 #include "net/tools/quic/be_quic_define.h"
 #include "net/tools/quic/be_quic_spdy_client.h"
 #include "base/threading/simple_thread.h"
+#include "base/message_loop/message_loop.h"
 
 #include <memory>
 #include <vector>
@@ -11,6 +12,11 @@
 #include <atomic>
 
 namespace net {
+
+////////////////////////////////////Promise//////////////////////////////////////
+typedef std::promise<int> IntPromise;
+typedef std::shared_ptr<IntPromise> IntPromisePtr;
+typedef std::shared_future<int> IntFuture;
 
 ////////////////////////////////////InternalQuicHeader//////////////////////////////////////
 typedef struct InternalQuicHeader {
@@ -52,9 +58,9 @@ public:
 
     int64_t seek(int64_t off, int whence);
 
-    int64_t seek_from_net(int64_t off);
+    void seek_internal(int64_t off, int whence, IntPromisePtr promise);
 
-    bool check_seeking();
+    int64_t seek_from_net(int64_t off);
 
     int get_handle() { return handle_; }
     
@@ -91,14 +97,11 @@ private:
     int ietf_draft_version_     = -1;
     int handshake_version_      = -1;
     int transport_version_      = -1;
-    std::shared_ptr<std::promise<int> > open_promise_;
-    std::shared_ptr<std::promise<int64_t> > seek_promise_;
-    std::atomic_bool busy_;
-    std::atomic_bool running_;
-    std::atomic_bool seeking_;
-    std::mutex mutex_;
-    std::condition_variable cond_; //Closing and seeking condition.
-    int64_t seek_offset_ = -1;
+    IntPromisePtr open_promise_;
+    std::atomic_bool busy_;     //Flag indicate if invoke thread called open/close.
+    std::atomic_bool running_;  //Flag indicate if worker thread running.
+    base::MessageLoopForIO *message_loop_ = NULL;
+    base::RunLoop *run_loop_ = NULL;
 };
 
 }  // namespace net

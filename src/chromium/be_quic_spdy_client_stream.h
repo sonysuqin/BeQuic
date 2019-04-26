@@ -32,6 +32,9 @@ public:
     //Rewrite OnBodyAvailable for reporting data to up lever in real-time, for stream live time is short.
     void OnBodyAvailable() override;
 
+    //Rewrite OnClose.
+    void OnClose() override;
+
     //Delegate to receive content data.
     void set_delegate(std::weak_ptr<net::BeQuicSpdyDataDelegate> data_delegate) { data_delegate_ = data_delegate; }
 

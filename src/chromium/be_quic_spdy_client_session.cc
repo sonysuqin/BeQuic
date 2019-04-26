@@ -31,4 +31,12 @@ std::unique_ptr<QuicSpdyClientStream> BeQuicSpdyClientSession::CreateClientStrea
     return stream;
 }
 
+void BeQuicSpdyClientSession::OnConnectionClosed(QuicErrorCode error, const std::string& error_details, ConnectionCloseSource source) {
+    LOG(INFO) << "Session " << connection_id().ToString() << " closed, error:" << quic::QuicErrorCodeToString(error)
+              << ", details:" << error_details << ", source:"
+              << static_cast<std::underlying_type<ConnectionCloseSource>::type>(source);
+
+    quic::QuicSession::OnConnectionClosed(error, error_details, source);
+}
+
 }  // namespace quic

@@ -65,6 +65,11 @@ void BeQuicSpdyClientStream::OnBodyAvailable() {
     }
 }
 
+void BeQuicSpdyClientStream::OnClose() {
+    LOG(INFO) << "Stream " << id() << " closed."<< std::endl;
+    quic::QuicSpdyStream::OnClose();
+}
+
 void BeQuicSpdyClientStream::check_content_length() {
     const spdy::SpdyHeaderBlock& headers = QuicSpdyClientStream::response_headers();
     if (QuicContainsKey(headers, "content-length")) {
