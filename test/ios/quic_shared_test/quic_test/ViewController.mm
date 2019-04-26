@@ -20,8 +20,8 @@
     [super viewDidLoad];
     // Do any additional setup after loading the view, typically from a nib.
 
-    const char* url = "http://10.2.9.251:6121";
-    int handle = be_quic_open(url, NULL, 0, NULL, NULL, 0, NULL, 0, 1, 1000);
+    const char* url = "https://quic.gd.sohu.com:443/1.mp4";
+    int handle = be_quic_open(url, NULL, 0, NULL, NULL, 0, NULL, 0, 1, 0, 1, 43, 1000);
     int size = 0;
     unsigned long filesize = 0;
     unsigned char* buffer = (unsigned char *)malloc(1024 * 10);
