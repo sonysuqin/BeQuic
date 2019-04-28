@@ -86,44 +86,62 @@ int BeQuicSpdyClient::read_body(unsigned char *buf, int size, int timeout) {
 int64_t BeQuicSpdyClient::seek_in_buffer(int64_t off, int whence, int64_t *target_off) {
     //Since calling from worker thread, lock is unnecessary.
     //std::unique_lock<std::mutex> lock(mutex_);
-    if (content_length_ == -1) {
-        return kBeQuicErrorCode_Not_Supported;
-    }
+    int64_t ret = -1;
+    do {
+        if (content_length_ == -1) {
+            ret = kBeQuicErrorCode_Not_Supported;
+            break;
+        }
 
-    if (whence == AVSEEK_SIZE) {
-        return content_length_;
-    } else if ((whence == SEEK_CUR && off == 0) || (whence == SEEK_SET && off == read_offset_)) {
-        return off;
-    } else if (content_length_ == -1 && whence == SEEK_END) {
-        return kBeQuicErrorCode_Invalid_State;
-    }
+        if (whence == AVSEEK_SIZE) {
+            ret = content_length_;
+            break;
+        }
 
-    if (whence == SEEK_CUR) {
-        off += read_offset_;
-    } else if (whence == SEEK_END) {
-        off += content_length_;
-    } else if (whence != SEEK_SET) {
-        return kBeQuicErrorCode_Invalid_Param;
-    }
+        if ((whence == SEEK_CUR && off == 0) || (whence == SEEK_SET && off == read_offset_)) {
+            ret = off;
+            break;
+        }
 
-    if (off < 0) {
-        return kBeQuicErrorCode_Invalid_Param;
-    }
+        if (content_length_ == -1 && whence == SEEK_END) {
+            ret = kBeQuicErrorCode_Invalid_State;
+            break;
+        }
 
-    //Check if hit the buffer.
-    int64_t left_size = (int64_t)response_buff_.size();
-    int64_t consume_size = off - read_offset_;
+        if (whence == SEEK_CUR) {
+            off += read_offset_;
+        } else if (whence == SEEK_END) {
+            off += content_length_;
+        } else if (whence != SEEK_SET) {
+            ret = kBeQuicErrorCode_Invalid_Param;
+            break;
+        }
 
-    if (consume_size > 0 && left_size > consume_size) {
-        response_buff_.consume(consume_size);
-        read_offset_ = off;
-        return off;
-    }
-    
-    if (target_off != NULL) {
-        *target_off = off;
-    }
-    return kBeQuicErrorCode_Buffer_Not_Hit;
+        if (off < 0) {
+            ret = kBeQuicErrorCode_Invalid_Param;
+            break;
+        }
+
+        //Check if hit the buffer.
+        int64_t left_size = (int64_t)response_buff_.size();
+        int64_t consume_size = off - read_offset_;
+
+        if (consume_size > 0 && left_size > consume_size) {
+            response_buff_.consume(consume_size);
+            read_offset_ = off;
+            ret = off;
+            break;
+        }
+
+        if (target_off != NULL) {
+            *target_off = off;
+        }
+
+        ret = kBeQuicErrorCode_Buffer_Not_Hit;
+    } while (0);
+
+    LOG(INFO) << "seek_in_buffer " << off << " " << whence << " return "  << ret << std::endl;
+    return ret;
 }
 
 bool BeQuicSpdyClient::close_current_stream() {
@@ -140,8 +158,12 @@ bool BeQuicSpdyClient::close_current_stream() {
             break;
         }
 
-        //Close quic stream.
+        LOG(INFO) << "Closing stream " << current_stream_id_ << std::endl;
+
+        //Close quic stream, send Reset frame to close peer stream.
+        session->SendRstStream(current_stream_id_, quic::QUIC_STREAM_CANCELLED, 0);
         session->CloseStream(current_stream_id_);
+
         current_stream_id_ = 0;
         read_offset_ = 0;
 

@@ -219,6 +219,7 @@ int64_t BeQuicClient::seek_from_net(int64_t off) {
         }
 
         if (!spdy_quic_client_->connected()) {
+            LOG(INFO) << "Reconnecting." << std::endl;
             if (spdy_quic_client_->Connect()) {
                 LOG(INFO) << "Reconnect success." << std::endl;
             } else {
@@ -230,9 +231,12 @@ int64_t BeQuicClient::seek_from_net(int64_t off) {
         //Not test this yet, for server not supported currently.
         spdy_quic_client_->close_current_stream();
 
+        //Reset read offset to target offset.
+        spdy_quic_client_->set_read_offset(off);
+
         std::ostringstream os;
         os << "bytes=" << off << "-";
-        header_block_["Range"] = os.str();
+        header_block_["range"] = os.str();
 
         spdy_quic_client_->SendRequest(header_block_, "", true);
         ret = off;

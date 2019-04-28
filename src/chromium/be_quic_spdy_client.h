@@ -33,6 +33,8 @@ public:
 
     int64_t seek_in_buffer(int64_t off, int whence, int64_t *target_off);
 
+    void set_read_offset(int64_t off) { read_offset_ = off; }
+
     bool close_current_stream();
 
     void on_data(quic::QuicSpdyClientStream *stream, char *buf, int size) override;
