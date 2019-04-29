@@ -132,6 +132,7 @@ void BeQuicClient::close() {
     }
 
     //Stop message loop.
+    running_ = false;
     if (message_loop_ != NULL && run_loop_ != NULL) {
         message_loop_->task_runner()->PostTask(FROM_HERE, run_loop_->QuitClosure());
     }
