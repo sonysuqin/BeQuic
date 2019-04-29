@@ -85,8 +85,10 @@ int BeQuicClient::open(
         transport_version_  = transport_version;
 
         //Create promise for blocking wait.
+        IntPromisePtr open_promise;
         if (timeout != 0) {
             open_promise_.reset(new std::promise<int>);
+            open_promise = open_promise_;
         }
 
         //Start thread.
