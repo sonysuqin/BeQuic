@@ -2,7 +2,14 @@
 #include "be_quic.h"
 #include <string>
 
+#ifdef WIN32
 #include <windows.h>
+#ifdef CHECK_MEMORY_LEAK
+#define _CRTDBG_MAP_ALLOC
+#include <cstdlib>
+#include <crtdbg.h>
+#endif
+#endif
 
 typedef uint64_t TimeType;
 
@@ -35,13 +42,13 @@ static TimeType get_tickcount() {
 
 bool g_write_file   = true;
 FILE *g_fp          = NULL;
-std::string g_data;
 
 int main(int argc, char* argv[]) {
     while (1) {
+        std::string g_data;
         TimeType t1 = GetTickCount();
         int handle = be_quic_open(
-            "https://www.example.org:6121",
+            "https://quic.gd.sohu.com:443/1.mp4",
             NULL,
             0,
             "GET",
@@ -105,11 +112,18 @@ int main(int argc, char* argv[]) {
         be_quic_close(handle);
 
         printf("Closed quic session %d.\n", handle);
-        printf("Press ENTER to open again.\n");
-
-        getchar();
+        break;
     }
 
+    printf("Press ENTER to exit.\n");
     getchar();
+
+#ifdef CHECK_MEMORY_LEAK
+#ifdef WIN32
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_DEBUG);
+    _CrtDumpMemoryLeaks();
+#endif
+#endif
     return 0;
 }
