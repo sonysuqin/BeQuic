@@ -71,7 +71,7 @@ int BeQuicClient::open(
             ret = kBeQuicErrorCode_Invalid_State;
             break;
         }
-        
+
         //Save parameters.
         url_                = url;
         mapped_ip_          = (ip == NULL) ? "" : ip;
@@ -108,9 +108,9 @@ int BeQuicClient::open(
             ret = future.get(); //Blocking.
             break;
         }
-        
+
         //Wait for certain time.
-        std::future_status status = 
+        std::future_status status =
             future.wait_until(std::chrono::system_clock::now() + std::chrono::milliseconds(timeout));
         if (status == std::future_status::ready) {
             ret = future.get();
@@ -221,6 +221,8 @@ int64_t BeQuicClient::seek_from_net(int64_t off) {
             break;
         }
 
+        spdy_quic_client_->close_current_stream();
+
         if (!spdy_quic_client_->connected()) {
             LOG(INFO) << "Reconnecting." << std::endl;
             if (spdy_quic_client_->Connect()) {
@@ -230,9 +232,6 @@ int64_t BeQuicClient::seek_from_net(int64_t off) {
                 break;
             }
         }
-
-        //Not test this yet, for server not supported currently.
-        spdy_quic_client_->close_current_stream();
 
         //Reset read offset to target offset.
         spdy_quic_client_->set_read_offset(off);
