@@ -3468,6 +3468,8 @@ if (!is_ios) {
       "tools/quic/be_quic_client.cc",
       "tools/quic/be_quic_client_manager.h",
       "tools/quic/be_quic_client_manager.cc",
+      "tools/quic/be_quic_client_message_loop_network_helper.h",
+      "tools/quic/be_quic_client_message_loop_network_helper.cc",
       "tools/quic/be_quic_fake_proof_verifier.h",
       "tools/quic/be_quic_fake_proof_verifier.cc",
       "tools/quic/be_quic_spdy_client.h",
