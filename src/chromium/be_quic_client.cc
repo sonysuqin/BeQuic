@@ -225,6 +225,15 @@ int64_t BeQuicClient::seek_from_net(int64_t off) {
 
         if (!spdy_quic_client_->connected()) {
             LOG(INFO) << "Reconnecting." << std::endl;
+
+            //Initialize quic client.
+            if (!spdy_quic_client_->Initialize()) {
+                ret = kBeQuicErrorCode_Fatal_Error;
+                LOG(ERROR) << "Failed to initialize bequic client." << std::endl;
+                break;
+            }
+
+            //Reconnect.
             if (spdy_quic_client_->Connect()) {
                 LOG(INFO) << "Reconnect success." << std::endl;
             } else {

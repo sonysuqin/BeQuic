@@ -76,11 +76,14 @@ int BE_QUIC_CALL be_quic_open(
             CHECK(logging::InitLogging(settings));
             logging::SetLogMessageHandler(internal_log_callback);
 #ifdef _DEBUG
-            logging::SetMinLogLevel(logging::LOG_VERBOSE);
+            //logging::SetMinLogLevel(logging::LOG_VERBOSE);
 #endif
 
             //Startup TaskScheduler.
             base::TaskScheduler::CreateAndStartWithDefaultParams("be_quic");
+
+            //Disable resending queued data.
+            SetQuicReloadableFlag(enable_quic_stateless_reject_support, false);
 
             first_invoke = false;
             LOG(INFO) << "BeQuic 1.0" << std::endl;

@@ -1,18 +1,34 @@
 #ifndef __BE_QUIC_SPDY_CLIENT_H__
 #define __BE_QUIC_SPDY_CLIENT_H__
 
-#include "net/tools/quic/quic_simple_client.h"
+#include "base/command_line.h"
+#include "base/macros.h"
+#include "base/synchronization/condition_variable.h"
+#include "net/base/ip_address.h"
+#include "net/base/ip_endpoint.h"
+#include "net/http/http_response_headers.h"
+#include "net/log/net_log.h"
+#include "net/quic/platform/impl/quic_chromium_clock.h"
+#include "net/quic/quic_chromium_packet_reader.h"
+#include "net/third_party/quiche/src/quic/core/http/quic_spdy_stream.h"
+#include "net/third_party/quiche/src/quic/core/quic_config.h"
+#include "net/third_party/quiche/src/quic/tools/quic_spdy_client_base.h"
+#include "net/tools/quic/quic_client_message_loop_network_helper.h"
 #include "net/tools/quic/be_quic_spdy_client_stream.h"
 #include "net/tools/quic/be_quic_spdy_data_delegate.h"
-#include "base/synchronization/condition_variable.h"
 
+#include <stddef.h>
+#include <memory>
+#include <string>
 #include <mutex>
 #include <condition_variable>
 
 namespace net {
+class QuicChromiumAlarmFactory;
+class QuicChromiumConnectionHelper;
 
 class BeQuicSpdyClient
-    : public QuicSimpleClient, 
+    : public quic::QuicSpdyClientBase, 
       public BeQuicSpdyDataDelegate,
       public std::enable_shared_from_this<BeQuicSpdyClient> {
 public:
@@ -42,18 +58,33 @@ public:
 private:
     bool is_buffer_sufficient();
 
+    QuicChromiumAlarmFactory* CreateQuicAlarmFactory();
+
+    QuicChromiumConnectionHelper* CreateQuicConnectionHelper();
+
 private:
+    //For block reading.
     std::mutex mutex_;
     std::condition_variable cond_;
+
     //Parent class save body content in std::string, causing increasing memory
-    //when downloaing big file, so repace it with streambuf from boost::asio.
+    //when downloaing big file, so replace it with streambuf from boost::asio.
     boost::asio::streambuf response_buff_;
     std::istream istream_;
     std::ostream ostream_;
-    bool got_first_data_ = false;
+
+    //Data flags.
+    bool got_first_data_    = false;
     int64_t content_length_ = -1;
-    int64_t read_offset_ = 0;
+    int64_t read_offset_    = 0;
+
+    //Valid after stream created.
     quic::QuicStreamId current_stream_id_ = 0;
+
+    //From QuicSimpleClient.
+    quic::QuicChromiumClock clock_;
+    base::WeakPtrFactory<BeQuicSpdyClient> weak_factory_;
+    DISALLOW_COPY_AND_ASSIGN(BeQuicSpdyClient);
 };
 
 }  // namespace net
