@@ -47,8 +47,9 @@ int main(int argc, char* argv[]) {
     while (1) {
         std::string g_data;
         TimeType t1 = GetTickCount();
+        //https://quic.gd.sohu.com:443/1.mp4
         int handle = be_quic_open(
-            "https://quic.gd.sohu.com:443/1.mp4",
+            "https://testlive.hd.sohu.com:443/2.mp4",
             NULL,
             0,
             "GET",
@@ -98,11 +99,37 @@ int main(int argc, char* argv[]) {
 
         if (g_write_file) {
             fclose(g_fp);
+            g_fp = NULL;
         }
 
         printf("Totally read data %d bytes.\n", total_len);
         if (!g_write_file) {
             printf("%s\n", g_data.c_str());
+        }
+
+        if (1) {
+            BeQuicStats stats;
+            memset(&stats, 0, sizeof(&stats));
+            be_quic_get_stats(handle, &stats);
+            printf("Stats:\n");
+            printf("  packets_lost            : %I64d.\n", stats.packets_lost);
+            printf("  packets_reordered       : %I64d.\n", stats.packets_reordered);
+            printf("  rtt                     : %I64d ms.\n", stats.rtt / 1000);
+            printf("  bandwidth               : %I64d kbps.\n", stats.bandwidth / 1024);
+            printf("  resolve_time            : %I64d ms.\n", stats.resolve_time / 1000);
+            printf("  connect_time            : %I64d ms.\n", stats.connect_time / 1000);
+            printf("  first_data_receive_time : %I64d ms.\n", stats.first_data_receive_time / 1000);
+        }
+
+        while (0) {
+            printf("Press ENTER to seek.\n");
+            getchar();
+            be_quic_seek(handle, 10 * 1024 * 1024, 0);
+            printf("Press ENTER to read.\n");
+            getchar();
+            while (be_quic_read(handle, buf, len, 0) > 0) {
+
+            }
         }
 
         printf("Press ENTER to close.\n");
@@ -112,7 +139,10 @@ int main(int argc, char* argv[]) {
         be_quic_close(handle);
 
         printf("Closed quic session %d.\n", handle);
-        break;
+        //break;
+
+        printf("Press ENTER to reopen.\n");
+        getchar();
     }
 
     printf("Press ENTER to exit.\n");

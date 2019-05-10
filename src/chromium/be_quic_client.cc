@@ -194,63 +194,35 @@ int64_t BeQuicClient::seek(int64_t off, int whence) {
     return ret;
 }
 
-void BeQuicClient::seek_internal(int64_t off, int whence, IntPromisePtr promise) {
-    int ret = -1;
+int BeQuicClient::get_stats(BeQuicStats *stats) {
+    int ret = 0;
     do {
-        if (spdy_quic_client_ == NULL) {
+        if (stats == NULL) {
+            ret = kBeQuicErrorCode_Invalid_Param;
+            break;
+        }
+
+        if (!running_) {
             ret = kBeQuicErrorCode_Invalid_State;
             break;
         }
 
-        int64_t target_offset = -1;
-        ret = spdy_quic_client_->seek_in_buffer(off, whence, &target_offset);
-        if (ret == kBeQuicErrorCode_Buffer_Not_Hit) {
-            ret = seek_from_net(target_offset);
-        }
-    } while (0);
-
-    if (promise != NULL) {
-        promise->set_value(ret);
-    }
-}
-
-int64_t BeQuicClient::seek_from_net(int64_t off) {
-    int64_t ret = -1;
-    do {
-        if (spdy_quic_client_ == NULL || off < 0) {
+        if (message_loop_ == NULL) {
+            ret = kBeQuicErrorCode_Null_Pointer;
             break;
         }
 
-        spdy_quic_client_->close_current_stream();
+        IntPromisePtr promise(new IntPromise);
+        message_loop_->task_runner()->PostTask(
+            FROM_HERE,
+            base::BindOnce(
+                &BeQuicClient::get_stats_internal,
+                base::Unretained(this),
+                stats,
+                promise));
 
-        if (!spdy_quic_client_->connected()) {
-            LOG(INFO) << "Reconnecting." << std::endl;
-
-            //Initialize quic client.
-            if (!spdy_quic_client_->Initialize()) {
-                ret = kBeQuicErrorCode_Fatal_Error;
-                LOG(ERROR) << "Failed to initialize bequic client." << std::endl;
-                break;
-            }
-
-            //Reconnect.
-            if (spdy_quic_client_->Connect()) {
-                LOG(INFO) << "Reconnect success." << std::endl;
-            } else {
-                LOG(ERROR) << "Reconnect failed." << std::endl;
-                break;
-            }
-        }
-
-        //Reset read offset to target offset.
-        spdy_quic_client_->set_read_offset(off);
-
-        std::ostringstream os;
-        os << "bytes=" << off << "-";
-        header_block_["range"] = os.str();
-
-        spdy_quic_client_->SendRequest(header_block_, "", true);
-        ret = off;
+        IntFuture future = promise->get_future();
+        ret = future.get();
     } while (0);
     return ret;
 }
@@ -344,6 +316,8 @@ int BeQuicClient::internal_request(
     int transport_version) {
     int ret = kBeQuicErrorCode_Success;
     do {
+        start_time_ = base::Time::Now();
+
         //Parse host and port from url.
         GURL gurl(url);
         std::string host    = gurl.host();
@@ -385,9 +359,13 @@ int BeQuicClient::internal_request(
 #endif
         }
 
+        base::Time resolved_time = base::Time::Now();
+        base::TimeDelta resolve_time = resolved_time - start_time_;
+        resolve_time_ = resolve_time.InMicroseconds();
+
         //Make up QuicIpAddress.
         quic::QuicIpAddress ip_addr = quic::QuicIpAddress(quic::QuicIpAddressImpl(addresses[0].address()));
-        LOG(INFO) << "Resolve to " << ip_addr.ToString() << std::endl;
+        LOG(INFO) << "Resolve to " << ip_addr.ToString() << " using " << resolve_time_ / 1000 << " ms." << std::endl;
 
         //Make up serverid.
         quic::QuicServerId serverId(gurl.host(), gurl.EffectiveIntPort(), net::PRIVACY_MODE_DISABLED);
@@ -454,7 +432,11 @@ int BeQuicClient::internal_request(
             break;
         }
 
-        LOG(INFO) << "Connected!" << std::endl;
+        base::Time connected_time = base::Time::Now();
+        base::TimeDelta connect_time = connected_time - start_time_;
+        connect_time_ = connect_time.InMicroseconds();
+
+        LOG(INFO) << "Connected, using " << connect_time_ / 1000 << " ms." << std::endl;
 
         header_block_[":method"]      = method;
         header_block_[":scheme"]      = gurl.scheme();
@@ -509,6 +491,113 @@ int BeQuicClient::internal_request(
         open_promise_.reset();
     }
     return ret;
+}
+
+void BeQuicClient::seek_internal(int64_t off, int whence, IntPromisePtr promise) {
+    int ret = -1;
+    do {
+        if (spdy_quic_client_ == NULL) {
+            ret = kBeQuicErrorCode_Invalid_State;
+            break;
+        }
+
+        int64_t target_offset = -1;
+        ret = spdy_quic_client_->seek_in_buffer(off, whence, &target_offset);
+        if (ret == kBeQuicErrorCode_Buffer_Not_Hit) {
+            ret = seek_from_net(target_offset);
+        }
+    } while (0);
+
+    if (promise != NULL) {
+        promise->set_value(ret);
+    }
+}
+
+int64_t BeQuicClient::seek_from_net(int64_t off) {
+    int64_t ret = -1;
+    do {
+        if (spdy_quic_client_ == NULL || off < 0) {
+            break;
+        }
+
+        spdy_quic_client_->close_current_stream();
+
+        if (!spdy_quic_client_->connected()) {
+            LOG(INFO) << "Reconnecting." << std::endl;
+
+            //Initialize quic client.
+            if (!spdy_quic_client_->Initialize()) {
+                ret = kBeQuicErrorCode_Fatal_Error;
+                LOG(ERROR) << "Failed to initialize bequic client." << std::endl;
+                break;
+            }
+
+            //Update time.
+            start_time_ = base::Time::Now();
+
+            //Reconnect.
+            if (spdy_quic_client_->Connect()) {
+                base::Time connected_time = base::Time::Now();
+                base::TimeDelta connect_time = connected_time - start_time_;
+                connect_time_ = connect_time.InMicroseconds();
+                LOG(INFO) << "Reconnect success, using " << connect_time_ / 1000 << " ms." << std::endl;
+            } else {
+                LOG(ERROR) << "Reconnect failed." << std::endl;
+                break;
+            }
+        }
+
+        //Reset read offset to target offset.
+        spdy_quic_client_->set_read_offset(off);
+
+        std::ostringstream os;
+        os << "bytes=" << off << "-";
+        header_block_["range"] = os.str();
+
+        spdy_quic_client_->SendRequest(header_block_, "", true);
+        ret = off;
+    } while (0);
+    return ret;
+}
+
+void BeQuicClient::get_stats_internal(BeQuicStats *stats, IntPromisePtr promise) {
+    int ret = kBeQuicErrorCode_Success;
+    do {
+        if (spdy_quic_client_ == NULL) {
+            ret = kBeQuicErrorCode_Invalid_State;
+            break;
+        }
+
+        quic::QuicSession *session = spdy_quic_client_->session();
+        if (session == NULL) {
+            ret = kBeQuicErrorCode_Null_Pointer;
+            break;
+        }
+
+        quic::QuicConnection *connection = session->connection();
+        if (connection == NULL) {
+            ret = kBeQuicErrorCode_Connect_Fail;
+            break;
+        }
+
+        const quic::QuicConnectionStats &quic_stats = connection->GetStats();
+        stats->packets_lost             = static_cast<bequic_int64_t>(quic_stats.packets_lost);
+        stats->packets_reordered        = static_cast<bequic_int64_t>(quic_stats.packets_reordered);
+        stats->rtt                      = static_cast<bequic_int64_t>(quic_stats.srtt_us);
+        stats->bandwidth                = static_cast<bequic_int64_t>(quic_stats.estimated_bandwidth.ToBitsPerSecond());
+        stats->resolve_time             = static_cast<bequic_int64_t>(resolve_time_);
+        stats->connect_time             = static_cast<bequic_int64_t>(connect_time_);
+
+        const base::Time& first_data_time = spdy_quic_client_->get_first_data_time();
+        if (!first_data_time.is_null()) {
+            base::TimeDelta first_data_delta = first_data_time - start_time_;
+            stats->first_data_receive_time  = static_cast<bequic_int64_t>(first_data_delta.InMicroseconds());
+        }
+    } while (0);
+
+    if (promise != NULL) {
+        promise->set_value(ret);
+    }
 }
 
 }  // namespace net

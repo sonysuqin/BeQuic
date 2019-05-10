@@ -228,8 +228,9 @@ void BeQuicSpdyClient::on_data(quic::QuicSpdyClientStream *stream, char *buf, in
     
     if (!got_first_data_) {
         quic::BeQuicSpdyClientStream* bequic_stream = static_cast<quic::BeQuicSpdyClientStream*>(stream);
-        content_length_ = bequic_stream->content_length();
-        got_first_data_ = true;
+        content_length_     = bequic_stream->content_length();
+        first_data_time_    = base::Time::Now();
+        got_first_data_     = true;
     }
 
     if (buf != NULL && size > 0) {

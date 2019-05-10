@@ -124,4 +124,15 @@ typedef enum BeQuicHandshakeProtocol {
     kBeQuic_Handshake_Protocol_TLS_1_3,
 }BeQuicHandshakeProtocol;
 
+/// Quic stats struct defination.
+typedef struct BeQuicStats {
+    bequic_int64_t packets_lost;                //!< Number of packets abandoned as lost by the loss detection algorithm.
+    bequic_int64_t packets_reordered;           //!< Number of packets received out of packet number order.
+    bequic_int64_t rtt;                         //!< Smoothed RTT in microseconds.
+    bequic_int64_t bandwidth;                   //!< Estimated bandwidth.
+    bequic_int64_t resolve_time;                //!< Domain resolve time duration in microseconds since starting connecting.
+    bequic_int64_t connect_time;                //!< Connection establish time duration in microseconds since starting connecting.
+    bequic_int64_t first_data_receive_time;     //!< First data receive time duration in microseconds since starting connecting.
+}BeQuicStats;
+
 #endif // #ifndef __BE_QUIC_DEFINE_H__

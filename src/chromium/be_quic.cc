@@ -85,6 +85,9 @@ int BE_QUIC_CALL be_quic_open(
             //Disable resending queued data.
             SetQuicReloadableFlag(enable_quic_stateless_reject_support, false);
 
+
+            SetQuicReloadableFlag(quic_default_to_bbr, true);
+
             first_invoke = false;
             LOG(INFO) << "BeQuic 1.0" << std::endl;
         }
@@ -201,4 +204,18 @@ bequic_int64_t BE_QUIC_CALL be_quic_seek(int handle, bequic_int64_t off, int whe
 
 void BE_QUIC_CALL be_quic_set_log_callback(BeQuicLogCallback callback) {
     g_external_log_callback = callback;
+}
+
+int BE_QUIC_CALL be_quic_get_stats(int handle, BeQuicStats *stats) {
+    bequic_int64_t ret = 0;
+    do {
+        net::BeQuicClient::Ptr client = net::BeQuicClientManager::instance()->get_client(handle);
+        if (client == NULL) {
+            ret = kBeQuicErrorCode_Not_Found;
+            break;
+        }
+
+        ret = client->get_stats(stats);
+    } while (0);
+    return ret;
 }

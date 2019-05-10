@@ -58,9 +58,7 @@ public:
 
     int64_t seek(int64_t off, int whence);
 
-    void seek_internal(int64_t off, int whence, IntPromisePtr promise);
-
-    int64_t seek_from_net(int64_t off);
+    int get_stats(BeQuicStats *stats);
 
     int get_handle() { return handle_; }
     
@@ -83,6 +81,12 @@ private:
         int handshake_version,
         int transport_version);
 
+    void seek_internal(int64_t off, int whence, IntPromisePtr promise);
+
+    int64_t seek_from_net(int64_t off);
+
+    void get_stats_internal(BeQuicStats *stats, IntPromisePtr promise);
+
 private:
     int handle_ = -1;
     std::shared_ptr<BeQuicSpdyClient> spdy_quic_client_;
@@ -101,7 +105,10 @@ private:
     std::atomic_bool busy_;     //Flag indicate if invoke thread called open/close.
     std::atomic_bool running_;  //Flag indicate if worker thread running.
     base::MessageLoopForIO *message_loop_ = NULL;
-    base::RunLoop *run_loop_ = NULL;
+    base::RunLoop *run_loop_    = NULL;
+    base::Time start_time_;
+    int64_t resolve_time_       = 0;
+    int64_t connect_time_       = 0;
 };
 
 }  // namespace net

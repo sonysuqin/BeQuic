@@ -55,6 +55,8 @@ public:
 
     void on_data(quic::QuicSpdyClientStream *stream, char *buf, int size) override;
 
+    const base::Time& get_first_data_time() { return first_data_time_; }
+
 private:
     bool is_buffer_sufficient();
 
@@ -80,6 +82,9 @@ private:
 
     //Valid after stream created.
     quic::QuicStreamId current_stream_id_ = 0;
+
+    //Timing.
+    base::Time first_data_time_;
 
     //From QuicSimpleClient.
     quic::QuicChromiumClock clock_;

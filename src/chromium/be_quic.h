@@ -89,6 +89,15 @@ BE_QUIC_API bequic_int64_t BE_QUIC_CALL be_quic_seek(int handle, bequic_int64_t 
  */
 BE_QUIC_API void BE_QUIC_CALL be_quic_set_log_callback(BeQuicLogCallback callback);
 
+/**
+ *  @brief  Get stats of specific quic session.
+ *  @param  handle              Quic session handle.
+ *  @param  stats               BeQuicStats struct to receive stats info.
+ *  @return Error code.
+ *  @note   This method can be called whenever session is opened.
+ */
+BE_QUIC_API int BE_QUIC_CALL be_quic_get_stats(int handle, BeQuicStats *stats);
+
 #ifdef __cplusplus
 }
 #endif
