@@ -24,6 +24,15 @@ void BeQuicSpdyClientStream::OnInitialHeadersComplete(
       const QuicHeaderList& header_list) {
     QuicSpdyClientStream::OnInitialHeadersComplete(fin, frame_len, header_list);
     check_content_length();
+
+#ifdef _DEBUG
+    const spdy::SpdyHeaderBlock& headers = QuicSpdyClientStream::response_headers();
+    LOG(INFO) << "Headers: " << std::endl;
+    auto iter = headers.begin();
+    for (;iter != headers.end();++iter) {
+        LOG(INFO) << iter->first << ": " << iter->second << std::endl;
+    }
+#endif
 }
 
 void BeQuicSpdyClientStream::OnBodyAvailable() {
@@ -70,19 +79,17 @@ void BeQuicSpdyClientStream::OnClose() {
     quic::QuicSpdyStream::OnClose();
 }
 
-void BeQuicSpdyClientStream::check_content_length() {
+int64_t BeQuicSpdyClientStream::check_content_length() {
+    if (content_length_ > 0) {
+        return content_length_;
+    }
+
     const spdy::SpdyHeaderBlock& headers = QuicSpdyClientStream::response_headers();
     if (QuicContainsKey(headers, "content-length")) {
         SpdyUtils::ExtractContentLengthFromHeaders(&content_length_, (spdy::SpdyHeaderBlock*)&headers);
     }
 
-#ifdef _DEBUG
-    LOG(INFO) << "Headers: " << std::endl;
-    auto iter = headers.begin();
-    for (;iter != headers.end();++iter) {
-        LOG(INFO) << iter->first << ": " << iter->second << std::endl;
-    }
-#endif
+    return content_length_;
 }
 
 }  // namespace quic

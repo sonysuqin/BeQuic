@@ -41,8 +41,8 @@ public:
     //Return re-parsed content-length, now it's public.    
     int64_t content_length() { return content_length_; }
 
-private:
-    void check_content_length();
+    //Check if content length available, or will parse from header.
+    int64_t check_content_length();
 
 private:
     int64_t content_length_ = -1;

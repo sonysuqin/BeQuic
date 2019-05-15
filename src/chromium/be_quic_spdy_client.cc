@@ -102,7 +102,7 @@ int BeQuicSpdyClient::read_body(unsigned char *buf, int size, int timeout) {
         }
 
         std::unique_lock<std::mutex> lock(mutex_);
-        while (!is_buffer_sufficient()) {            
+        while (!is_buffer_sufficient()) {
             if (timeout > 0) {
                 //Wait for certain time.
                 //LOG(INFO) << "buf size 0 will wait " << timeout << "ms" << std::endl;
@@ -225,10 +225,10 @@ void BeQuicSpdyClient::on_data(quic::QuicSpdyClientStream *stream, char *buf, in
         current_stream_id_ = stream->id();
         LOG(INFO) << "Bound to stream " << current_stream_id_ << std::endl;
     }
-    
+
     if (!got_first_data_) {
         quic::BeQuicSpdyClientStream* bequic_stream = static_cast<quic::BeQuicSpdyClientStream*>(stream);
-        content_length_     = bequic_stream->content_length();
+        content_length_     = bequic_stream->check_content_length();
         first_data_time_    = base::Time::Now();
         got_first_data_     = true;
     }

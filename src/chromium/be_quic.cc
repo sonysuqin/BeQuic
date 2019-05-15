@@ -85,9 +85,6 @@ int BE_QUIC_CALL be_quic_open(
             //Disable resending queued data.
             SetQuicReloadableFlag(enable_quic_stateless_reject_support, false);
 
-
-            SetQuicReloadableFlag(quic_default_to_bbr, true);
-
             first_invoke = false;
             LOG(INFO) << "BeQuic 1.0" << std::endl;
         }

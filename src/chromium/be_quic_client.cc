@@ -532,15 +532,13 @@ int64_t BeQuicClient::seek_from_net(int64_t off) {
                 break;
             }
 
-            //Update time.
-            start_time_ = base::Time::Now();
+            auto start_time = base::Time::Now();
 
             //Reconnect.
             if (spdy_quic_client_->Connect()) {
                 base::Time connected_time = base::Time::Now();
-                base::TimeDelta connect_time = connected_time - start_time_;
-                connect_time_ = connect_time.InMicroseconds();
-                LOG(INFO) << "Reconnect success, using " << connect_time_ / 1000 << " ms." << std::endl;
+                base::TimeDelta connect_time = connected_time - start_time;
+                LOG(INFO) << "Reconnect success, using " << connect_time.InMicroseconds() / 1000 << " ms." << std::endl;
             } else {
                 LOG(ERROR) << "Reconnect failed." << std::endl;
                 break;
