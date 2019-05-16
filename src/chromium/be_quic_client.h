@@ -67,8 +67,6 @@ public:
 private:
     void run_event_loop();
 
-    void run_idle_loop();    
-
     int internal_request(
         const std::string& url,
         const std::string& mapped_ip,

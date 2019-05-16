@@ -241,29 +241,27 @@ void BeQuicClient::Run() {
     message_loop_   = message_loop.get();
     run_loop_       = run_loop.get();
 
-    do {
-        //Internal request.
-        int ret = internal_request(
-            url_,
-            mapped_ip_,
-            mapped_port_,
-            method_,
-            headers_,
-            body_,
-            verify_certificate_,
-            ietf_draft_version_,
-            handshake_version_,
-            transport_version_);
-        if (ret != kBeQuicErrorCode_Success) {
-            break;
-        }
+    //Internal request.
+    int ret = internal_request(
+        url_,
+        mapped_ip_,
+        mapped_port_,
+        method_,
+        headers_,
+        body_,
+        verify_certificate_,
+        ietf_draft_version_,
+        handshake_version_,
+        transport_version_);
 
-        //Event loop.
-        run_event_loop();
-    } while (0);
+    //Causing invoke thread out of block after connect and handshake finished.
+    if (open_promise_) {
+        open_promise_->set_value(ret);
+        open_promise_.reset();
+    }
 
-    //Idle loop.
-    run_idle_loop();
+    //Event loop.
+    run_event_loop();
 
     //Disconnect quic client in this thread.
     if (spdy_quic_client_) {
@@ -294,12 +292,6 @@ void BeQuicClient::Run() {
 }
 
 void BeQuicClient::run_event_loop() {
-    while (running_ && spdy_quic_client_ && spdy_quic_client_->WaitForEvents()) {
-        //Do nothing.
-    }
-}
-
-void BeQuicClient::run_idle_loop() {
     run_loop_->Run();
 }
 
@@ -484,12 +476,6 @@ int BeQuicClient::internal_request(
         LOG(INFO) << "trailers: "   << spdy_quic_client_->latest_response_trailers() << std::endl;
         */
     } while (0);
-
-    //Causing invoke thread out of block after connect and handshake finished.
-    if (open_promise_) {
-        open_promise_->set_value(ret);
-        open_promise_.reset();
-    }
     return ret;
 }
 
