@@ -40,4 +40,8 @@ void BeQuicSpdyClientSession::OnConnectionClosed(QuicErrorCode error, const std:
     quic::QuicSession::OnConnectionClosed(error, error_details, source);
 }
 
+bool BeQuicSpdyClientSession::ShouldKeepConnectionAlive() const {
+    return QuicSpdySession::ShouldKeepConnectionAlive();
+}
+
 }  // namespace quic

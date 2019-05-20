@@ -27,10 +27,13 @@ public:
     std::unique_ptr<QuicSpdyClientStream> CreateClientStream() override;
 
     //Temp store it here.
-    void set_delegate(std::shared_ptr<net::BeQuicSpdyDataDelegate> delegate) { delegate_ = delegate; }
+    void set_delegate(std::weak_ptr<net::BeQuicSpdyDataDelegate> delegate) { delegate_ = delegate; }
 
     //Rewrite OnConnectionClosed.
     void OnConnectionClosed(QuicErrorCode error, const std::string& error_details, ConnectionCloseSource source) override;
+
+    //Control ping request.
+    bool ShouldKeepConnectionAlive() const override;
 
 private:
     std::weak_ptr<net::BeQuicSpdyDataDelegate> delegate_;

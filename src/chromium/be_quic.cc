@@ -56,6 +56,8 @@ int BE_QUIC_CALL be_quic_open(
     int ietf_draft_version,
     int handshake_version,
     int transport_version,
+    int block_size,
+    int block_consume,
     int timeout) {
     int ret = kBeQuicErrorCode_Success;
     do {
@@ -152,6 +154,8 @@ int BE_QUIC_CALL be_quic_open(
             ietf_draft_version,
             handshake_version,
             transport_version,
+            block_size,
+            block_consume,
             timeout);
         if (rv != kBeQuicErrorCode_Success) {
             net::BeQuicClientManager::instance()->close_and_release_client(ret);
@@ -176,7 +180,7 @@ int BE_QUIC_CALL be_quic_read(int handle, unsigned char *buf, int size, int time
             break;
         }
 
-        ret = client->read_body(buf, size, timeout);
+        ret = client->read_buffer(buf, size, timeout);
     } while (0);
     return ret;
 }

@@ -3,8 +3,6 @@
 
 #include "net/third_party/quiche/src/quic/core/http/quic_spdy_client_stream.h"
 #include "net/tools/quic/be_quic_spdy_data_delegate.h"
-#include "net/tools/quic/streambuf.hpp"
-#include "base/synchronization/lock.h"
 
 namespace quic {
 

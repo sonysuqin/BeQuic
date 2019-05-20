@@ -1,5 +1,6 @@
 #include "net/tools/quic/be_quic_client.h"
 #include "net/tools/quic/be_quic_fake_proof_verifier.h"
+#include "net/tools/quic/be_quic_spdy_client_stream.h"
 #include "net/base/net_errors.h"
 #include "net/base/privacy_mode.h"
 #include "net/base/address_list.h"
@@ -34,13 +35,22 @@ using quic::QuicTextUtils;
 using net::TransportSecurityState;
 using spdy::SpdyHeaderBlock;
 
+#define AVSEEK_SIZE     0x10000
+#define SEEK_SET        0
+#define SEEK_CUR        1
+#define SEEK_END        2
+
 namespace net {
+
+const int kReadBlockSize = 32768;
 
 BeQuicClient::BeQuicClient(int handle)
     : base::SimpleThread("BeQuic"),
       handle_(handle),
       busy_(false),
-      running_(false) {
+      running_(false),
+      istream_(&response_buff_),
+      ostream_(&response_buff_) {
     LOG(INFO) << "BeQuicClient created " << handle_ << std::endl;
 }
 
@@ -59,6 +69,8 @@ int BeQuicClient::open(
     int ietf_draft_version,
     int handshake_version,
     int transport_version,
+    int block_size,
+    int block_consume,
     int timeout) {
     int ret = 0;
     do {
@@ -83,6 +95,8 @@ int BeQuicClient::open(
         ietf_draft_version_ = ietf_draft_version;
         handshake_version_  = handshake_version;
         transport_version_  = transport_version;
+        block_size_         = block_size;
+        block_consume_      = block_consume;
 
         //Create promise for blocking wait.
         IntPromisePtr open_promise;
@@ -146,7 +160,7 @@ void BeQuicClient::close() {
     busy_ = false;
 }
 
-int BeQuicClient::read_body(unsigned char *buf, int size, int timeout) {
+int BeQuicClient::read_buffer(unsigned char *buf, int size, int timeout) {
     int ret = 0;
     do {
         if (!running_) {
@@ -154,12 +168,38 @@ int BeQuicClient::read_body(unsigned char *buf, int size, int timeout) {
             break;
         }
 
-        if (spdy_quic_client_ == NULL) {
-            ret = kBeQuicErrorCode_Invalid_State;
+        if (buf == NULL || size == 0) {
+            ret = kBeQuicErrorCode_Invalid_Param;
             break;
         }
 
-        ret = spdy_quic_client_->read_body(buf, size, timeout);
+        //TBD:Chunk?
+        if (content_length_ > 0 && read_offset_ >= content_length_) {
+            ret = kBeQuicErrorCode_Eof;
+            break;
+        }
+
+        std::unique_lock<std::mutex> lock(data_mutex_);
+        while (!is_buffer_sufficient()) {
+            if (timeout > 0) {
+                //Wait for certain time.
+                //LOG(INFO) << "buf size 0 will wait " << timeout << "ms" << std::endl;
+                data_cond_.wait_until(lock, std::chrono::system_clock::now() + std::chrono::milliseconds(timeout));
+            } else if (timeout < 0) {
+                //Wait forever.
+                data_cond_.wait(lock);
+            }
+            break;
+        }
+        size_t read_len = std::min<size_t>((size_t)size, response_buff_.size());
+        if (read_len == 0) {
+            break;
+        }
+
+        istream_.read((char*)buf, read_len);
+        read_offset_ += read_len;
+        ret = (int)read_len;
+        //LOG(INFO) << "buf read " << ret << "byte" << std::endl;
     } while (0);
     return ret;
 }
@@ -227,6 +267,33 @@ int BeQuicClient::get_stats(BeQuicStats *stats) {
     return ret;
 }
 
+void BeQuicClient::on_data(quic::QuicSpdyClientStream *stream, char *buf, int size) {
+    if (stream == NULL) {
+        return;
+    }
+
+    if (current_stream_id_ == 0) {
+        current_stream_id_ = stream->id();
+        LOG(INFO) << "Bound to stream " << current_stream_id_ << std::endl;
+    }
+
+    if (!got_first_data_) {
+        quic::BeQuicSpdyClientStream* bequic_stream = static_cast<quic::BeQuicSpdyClientStream*>(stream);
+        content_length_     = bequic_stream->check_content_length();
+        first_data_time_    = base::Time::Now();
+        got_first_data_     = true;
+    }
+
+    if (buf != NULL && size > 0) {
+        std::unique_lock<std::mutex> lock(data_mutex_);
+        ostream_.write(buf ,size);
+        if (is_buffer_sufficient()) {
+            //LOG(INFO) << "buf write one block " << response_buff_.size() << std::endl;
+            data_cond_.notify_all();
+        }
+    }
+}
+
 void BeQuicClient::Run() {
     LOG(INFO) << "Thread handle " << handle_ << " run." << std::endl;
 
@@ -252,7 +319,9 @@ void BeQuicClient::Run() {
         verify_certificate_,
         ietf_draft_version_,
         handshake_version_,
-        transport_version_);
+        transport_version_,
+        block_size_,
+        block_consume_);
 
     //Causing invoke thread out of block after connect and handshake finished.
     if (open_promise_) {
@@ -305,7 +374,9 @@ int BeQuicClient::internal_request(
     bool verify_certificate,
     int ietf_draft_version,
     int handshake_version,
-    int transport_version) {
+    int transport_version,
+    int block_size,
+    int block_consume) {
     int ret = kBeQuicErrorCode_Success;
     do {
         start_time_ = base::Time::Now();
@@ -399,7 +470,8 @@ int BeQuicClient::internal_request(
                 quic::QuicSocketAddress(ip_addr, port),
                 serverId,
                 versions,
-                std::move(proof_verifier)));
+                std::move(proof_verifier),
+                shared_from_this()));
         }
 
         //Set MTU.
@@ -488,7 +560,7 @@ void BeQuicClient::seek_internal(int64_t off, int whence, IntPromisePtr promise)
         }
 
         int64_t target_offset = -1;
-        ret = spdy_quic_client_->seek_in_buffer(off, whence, &target_offset);
+        ret = seek_in_buffer(off, whence, &target_offset);
         if (ret == kBeQuicErrorCode_Buffer_Not_Hit) {
             ret = seek_from_net(target_offset);
         }
@@ -499,6 +571,67 @@ void BeQuicClient::seek_internal(int64_t off, int whence, IntPromisePtr promise)
     }
 }
 
+int64_t BeQuicClient::seek_in_buffer(int64_t off, int whence, int64_t *target_off) {
+    //Since calling from worker thread, lock is unnecessary.
+    //std::unique_lock<std::mutex> lock(mutex_);
+    int64_t ret = -1;
+    do {
+        if (content_length_ == -1) {
+            ret = kBeQuicErrorCode_Not_Supported;
+            break;
+        }
+
+        if (whence == AVSEEK_SIZE) {
+            ret = content_length_;
+            break;
+        }
+
+        if ((whence == SEEK_CUR && off == 0) || (whence == SEEK_SET && off == read_offset_)) {
+            ret = off;
+            break;
+        }
+
+        if (content_length_ == -1 && whence == SEEK_END) {
+            ret = kBeQuicErrorCode_Invalid_State;
+            break;
+        }
+
+        if (whence == SEEK_CUR) {
+            off += read_offset_;
+        } else if (whence == SEEK_END) {
+            off += content_length_;
+        } else if (whence != SEEK_SET) {
+            ret = kBeQuicErrorCode_Invalid_Param;
+            break;
+        }
+
+        if (off < 0) {
+            ret = kBeQuicErrorCode_Invalid_Param;
+            break;
+        }
+
+        //Check if hit the buffer.
+        int64_t left_size = (int64_t)response_buff_.size();
+        int64_t consume_size = off - read_offset_;
+
+        if (consume_size > 0 && left_size > consume_size) {
+            response_buff_.consume(consume_size);
+            read_offset_ = off;
+            ret = off;
+            break;
+        }
+
+        if (target_off != NULL) {
+            *target_off = off;
+        }
+
+        ret = kBeQuicErrorCode_Buffer_Not_Hit;
+    } while (0);
+
+    LOG(INFO) << "seek_in_buffer " << off << " " << whence << " return "  << ret << std::endl;
+    return ret;
+}
+
 int64_t BeQuicClient::seek_from_net(int64_t off) {
     int64_t ret = -1;
     do {
@@ -506,8 +639,16 @@ int64_t BeQuicClient::seek_from_net(int64_t off) {
             break;
         }
 
-        spdy_quic_client_->close_current_stream();
+        //Close current stream.
+        close_current_stream();
 
+        //Reset read offset.
+        read_offset_ = off;
+
+        //Drop all data in buffer.
+        response_buff_.consume(response_buff_.size());
+
+        //If already disconnected, reconnect now.
         if (!spdy_quic_client_->connected()) {
             LOG(INFO) << "Reconnecting." << std::endl;
 
@@ -530,9 +671,6 @@ int64_t BeQuicClient::seek_from_net(int64_t off) {
                 break;
             }
         }
-
-        //Reset read offset to target offset.
-        spdy_quic_client_->set_read_offset(off);
 
         std::ostringstream os;
         os << "bytes=" << off << "-";
@@ -572,9 +710,8 @@ void BeQuicClient::get_stats_internal(BeQuicStats *stats, IntPromisePtr promise)
         stats->resolve_time             = static_cast<bequic_int64_t>(resolve_time_);
         stats->connect_time             = static_cast<bequic_int64_t>(connect_time_);
 
-        const base::Time& first_data_time = spdy_quic_client_->get_first_data_time();
-        if (!first_data_time.is_null()) {
-            base::TimeDelta first_data_delta = first_data_time - start_time_;
+        if (!first_data_time_.is_null()) {
+            base::TimeDelta first_data_delta = first_data_time_ - start_time_;
             stats->first_data_receive_time  = static_cast<bequic_int64_t>(first_data_delta.InMicroseconds());
         }
     } while (0);
@@ -582,6 +719,61 @@ void BeQuicClient::get_stats_internal(BeQuicStats *stats, IntPromisePtr promise)
     if (promise != NULL) {
         promise->set_value(ret);
     }
+}
+
+bool BeQuicClient::close_current_stream() {
+    bool ret = true;
+    do {
+        if (spdy_quic_client_ == NULL || current_stream_id_ == 0) {
+            ret = false;
+            break;
+        }
+
+        quic::QuicSession *session = spdy_quic_client_->session();
+        if (session == NULL) {
+            ret = false;
+            break;
+        }
+
+        LOG(INFO) << "Closing stream " << current_stream_id_ << std::endl;
+
+        //Close quic stream, send Reset frame to close peer stream.
+        session->SendRstStream(current_stream_id_, quic::QUIC_STREAM_CANCELLED, 0);
+        session->CloseStream(current_stream_id_);
+
+        current_stream_id_ = 0;
+    } while (0);
+    return ret;
+}
+
+bool BeQuicClient::is_buffer_sufficient() {
+    bool ret = true;
+    do {
+        size_t size = response_buff_.size();
+        if (content_length_ == -1) {
+            //Cannot determine end of stream, so if some data exists just return true for safe.
+            ret = size > 0;
+            break;
+        }
+
+        if (size == 0) {
+            ret = false;
+            break;
+        }
+
+        if (content_length_ - read_offset_ < kReadBlockSize) {
+            ret = true;
+            break;
+        }
+
+        if (size < kReadBlockSize) {
+            ret = false;
+            break;
+        }
+
+        ret = true;
+    } while (0);
+    return ret;
 }
 
 }  // namespace net

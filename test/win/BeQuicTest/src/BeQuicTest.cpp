@@ -47,9 +47,10 @@ int main(int argc, char* argv[]) {
     while (1) {
         std::string g_data;
         TimeType t1 = GetTickCount();
-        //https://quic.gd.sohu.com:443/1.mp4
+        //https://10.18.18.57:443/bee/smv3qWPC0px7ofPdOf5WqSOloLvGoSYlsLrioLkmsWaWsWOWsLo7qLaFqmwBOWPBqUsdqLxioWPnNmcBqMK2ZM47fFoUgVPARMvANTs2qT4Avm8AoV8uytcigG2sY?play_sequence=1&play_time=1&ori=1&f=1&uid=qf
+        //https://testlive.hd.sohu.com:443/xxx.mp4
         int handle = be_quic_open(
-            "https://testlive.hd.sohu.com:443/2.mp4",
+            "https://testlive.hd.sohu.com/2.mp4",
             NULL,
             0,
             "GET",
@@ -61,7 +62,9 @@ int main(int argc, char* argv[]) {
             -1,
             kBeQuic_Handshake_Protocol_Quic_Crypto,
             43,
-            5000);
+            5000,
+            -1,
+            -1);
 
         TimeType t2 = GetTickCount();
 
@@ -75,12 +78,13 @@ int main(int argc, char* argv[]) {
             g_fp = fopen("1.mp4", "wb+");
         }
 
-        unsigned char buf[32 * 1024] = { 0 };
+        auto buf = std::make_unique<unsigned char[]>(1024 * 1024);
         int len = (int)sizeof(buf);
         int total_len = 0;
         int read_len = 0;
         do {
-            read_len = be_quic_read(handle, buf, len, 5000);
+            //break;
+            read_len = be_quic_read(handle, buf.get(), len, 5000);
             if (read_len == 0) {
                 continue;
             }
@@ -90,9 +94,9 @@ int main(int argc, char* argv[]) {
             }
 
             if (g_write_file) {
-                fwrite(buf, read_len, 1, g_fp);
+                //fwrite(buf, read_len, 1, g_fp);
             } else {
-                g_data.append(std::string((char*)buf, read_len));
+                g_data.append(std::string((char*)buf.get(), read_len));
             }
             total_len += read_len;
         } while (1);
@@ -102,7 +106,12 @@ int main(int argc, char* argv[]) {
             g_fp = NULL;
         }
 
-        printf("Totally read data %d bytes.\n", total_len);
+        TimeType t3 = GetTickCount();
+        TimeType dl_spend_ms = t3 - t2;
+        double dl_spend_s = (double)dl_spend_ms / 1000;
+        double speed = (double)total_len / (dl_spend_s * 1024);
+
+        printf("Totally read data %d bytes using %lf s, speed %d KB/S.\n", total_len, dl_spend_s, (int)speed);
         if (!g_write_file) {
             printf("%s\n", g_data.c_str());
         }
@@ -127,7 +136,7 @@ int main(int argc, char* argv[]) {
             be_quic_seek(handle, 10 * 1024 * 1024, 0);
             printf("Press ENTER to read.\n");
             getchar();
-            while (be_quic_read(handle, buf, len, 0) > 0) {
+            while (be_quic_read(handle, buf.get(), len, 0) > 0) {
 
             }
         }
