@@ -11,6 +11,8 @@ public:
     virtual ~BeQuicSpdyDataDelegate() = default;
 
 public:
+    virtual void on_stream_created(quic::QuicSpdyClientStream *stream) = 0;
+    virtual void on_stream_closed(quic::QuicSpdyClientStream *stream) = 0;
     virtual void on_data(quic::QuicSpdyClientStream *stream, char *buf, int size) = 0;
 };
 

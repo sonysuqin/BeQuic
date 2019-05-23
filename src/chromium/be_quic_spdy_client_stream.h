@@ -36,15 +36,22 @@ public:
     //Delegate to receive content data.
     void set_delegate(std::weak_ptr<net::BeQuicSpdyDataDelegate> data_delegate) { data_delegate_ = data_delegate; }
 
-    //Return re-parsed content-length, now it's public.    
+    //Return re-parsed content-length, now it's public.
     int64_t content_length() { return content_length_; }
 
     //Check if content length available, or will parse from header.
     int64_t check_content_length();
 
+    //Return file size.
+    int64_t file_size() { return file_size_; }
+
+    //Check if file size available, or will parse from header.
+    int64_t check_file_size();
+
 private:
-    int64_t content_length_ = -1;
-    uint64_t accumulated_length_ = 0;
+    int64_t content_length_         = -1;
+    int64_t file_size_              = -1;
+    uint64_t accumulated_length_    = 0;
     std::weak_ptr<net::BeQuicSpdyDataDelegate> data_delegate_;
 };
 

@@ -28,7 +28,12 @@ std::unique_ptr<QuicSpdyClientStream> BeQuicSpdyClientSession::CreateClientStrea
     std::unique_ptr<BeQuicSpdyClientStream> stream = QuicMakeUnique<BeQuicSpdyClientStream>(
         GetNextOutgoingBidirectionalStreamId(), this, BIDIRECTIONAL);
     stream.get()->set_delegate(delegate_);
-    LOG(INFO) << "Create a stream " << stream->id() << std::endl;
+
+    std::shared_ptr<net::BeQuicSpdyDataDelegate> delegate = delegate_.lock();
+    if (delegate != NULL) {
+        delegate->on_stream_created(stream.get());
+    }
+
     return stream;
 }
 

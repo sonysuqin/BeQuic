@@ -31,7 +31,7 @@ extern "C" {
  *  @param  handshake_version   Quic handshake protocol version, 1: Quic Crypto, 2: TLS1.3.
  *  @param  transport_version   Quic transport protocol version, -1: chromium currently supported versions, other: specified version.
  *  @param  block_size          Download file blocks separately in sequence, 0:not split, <0:default block size, 1MB.
- *  @param  block_consume       Consume percent of last block when to preload next block, <=0:default percent, 50(%).
+ *  @param  block_consume       Consume percent of last block when to preload next block, <0:default percent, 50(%).
  *  @param  timeout             If quic session not established in timeout ms, will return timeout error.
  *  @return BeQuic session handle if > 0, otherwise, return error code.
  *  @note   This method will do resolving, connecting, handshaking and sending request.

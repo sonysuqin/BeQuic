@@ -174,7 +174,7 @@ int BeQuicClient::read_buffer(unsigned char *buf, int size, int timeout) {
         }
 
         //TBD:Chunk?
-        if (content_length_ > 0 && read_offset_ >= content_length_) {
+        if (file_size_ > 0 && read_offset_ >= file_size_) {
             ret = kBeQuicErrorCode_Eof;
             break;
         }
@@ -199,7 +199,10 @@ int BeQuicClient::read_buffer(unsigned char *buf, int size, int timeout) {
         istream_.read((char*)buf, read_len);
         read_offset_ += read_len;
         ret = (int)read_len;
-        //LOG(INFO) << "buf read " << ret << "byte" << std::endl;
+
+        if (block_manager_ != NULL) {
+            block_manager_->consume(read_len);
+        }
     } while (0);
     return ret;
 }
@@ -237,13 +240,13 @@ int64_t BeQuicClient::seek(int64_t off, int whence) {
 int BeQuicClient::get_stats(BeQuicStats *stats) {
     int ret = 0;
     do {
-        if (stats == NULL) {
-            ret = kBeQuicErrorCode_Invalid_Param;
+        if (!running_) {
+            ret = kBeQuicErrorCode_Invalid_State;
             break;
         }
 
-        if (!running_) {
-            ret = kBeQuicErrorCode_Invalid_State;
+        if (stats == NULL) {
+            ret = kBeQuicErrorCode_Invalid_Param;
             break;
         }
 
@@ -267,31 +270,110 @@ int BeQuicClient::get_stats(BeQuicStats *stats) {
     return ret;
 }
 
-void BeQuicClient::on_data(quic::QuicSpdyClientStream *stream, char *buf, int size) {
-    if (stream == NULL) {
-        return;
-    }
+void BeQuicClient::on_stream_created(quic::QuicSpdyClientStream *stream) {
+    do {
+        if (stream == NULL) {
+            break;
+        }
 
-    if (current_stream_id_ == 0) {
+        quic::QuicStreamId old_stream_id = current_stream_id_;
         current_stream_id_ = stream->id();
-        LOG(INFO) << "Bound to stream " << current_stream_id_ << std::endl;
+
+        LOG(INFO) << "Created new stream " << current_stream_id_ << std::endl;
+
+        if (old_stream_id == 0) {
+            break;
+        }
+
+        quic::QuicSession *session = spdy_quic_client_->session();
+        if (session == NULL) {
+            break;
+        }
+
+        LOG(INFO) << "Close old stream " << old_stream_id << std::endl;
+
+        //Close quic stream, send Reset frame to close peer stream.
+        session->SendRstStream(old_stream_id, quic::QUIC_STREAM_CANCELLED, 0);
+        session->CloseStream(old_stream_id);
+    } while (0);
+}
+
+void BeQuicClient::on_stream_closed(quic::QuicSpdyClientStream *stream) {
+    if (stream != NULL) {
+        if (stream->id() == current_stream_id_) {
+            current_stream_id_ = 0;
+        }
+        LOG(INFO) << "Stream " << stream->id() << " closed"<< std::endl;
+    }
+}
+
+void BeQuicClient::on_data(quic::QuicSpdyClientStream *stream, char *buf, int size) {
+    std::unique_lock<std::mutex> lock(data_mutex_);
+    if (stream == NULL || stream->id() != current_stream_id_) {
+        return;
     }
 
     if (!got_first_data_) {
         quic::BeQuicSpdyClientStream* bequic_stream = static_cast<quic::BeQuicSpdyClientStream*>(stream);
-        content_length_     = bequic_stream->check_content_length();
+        file_size_          = bequic_stream->check_file_size();
         first_data_time_    = base::Time::Now();
         got_first_data_     = true;
+
+        block_manager_.reset(new BeQuicBlockManager(shared_from_this()));
+        if (!block_manager_->init(file_size_, block_size_, block_consume_)) {
+            block_manager_.reset();
+        }
     }
 
     if (buf != NULL && size > 0) {
-        std::unique_lock<std::mutex> lock(data_mutex_);
-        ostream_.write(buf ,size);
+        ostream_.write(buf, size);
+
+        if (block_manager_ != NULL) {
+            block_manager_->produce(size);
+        }
+
         if (is_buffer_sufficient()) {
             //LOG(INFO) << "buf write one block " << response_buff_.size() << std::endl;
             data_cond_.notify_all();
         }
     }
+}
+
+bool BeQuicClient::on_preload_range(int64_t start, int64_t end) {
+    bool ret = true;
+    do {
+        if (message_loop_ == NULL) {
+            LOG(ERROR) << "on_preload_range invalid param message_loop_:NULL." << std::endl;
+            ret = false;
+            break;
+        }
+        
+        if (start < 0 || end == 0) {
+            LOG(ERROR) << "on_preload_range invalid param start:" << start << ", end:" << end << std::endl;
+            ret = false;
+            break;
+        }
+
+        if (spdy_quic_client_ == NULL) {
+            LOG(ERROR) << "on_preload_range invalid param spdy_quic_client_:NULL." << std::endl;
+            ret = false;
+            break;
+        }
+
+        if (0) {
+            request_range(start, end, NULL);
+        } else {
+            message_loop_->task_runner()->PostTask(
+                FROM_HERE,
+                base::BindOnce(
+                    &BeQuicClient::request_range,
+                    base::Unretained(this),
+                    start,
+                    end,
+                    (int*)NULL));
+        }
+    } while (0);
+    return ret;
 }
 
 void BeQuicClient::Run() {
@@ -319,9 +401,7 @@ void BeQuicClient::Run() {
         verify_certificate_,
         ietf_draft_version_,
         handshake_version_,
-        transport_version_,
-        block_size_,
-        block_consume_);
+        transport_version_);
 
     //Causing invoke thread out of block after connect and handshake finished.
     if (open_promise_) {
@@ -374,9 +454,7 @@ int BeQuicClient::internal_request(
     bool verify_certificate,
     int ietf_draft_version,
     int handshake_version,
-    int transport_version,
-    int block_size,
-    int block_consume) {
+    int transport_version) {
     int ret = kBeQuicErrorCode_Success;
     do {
         start_time_ = base::Time::Now();
@@ -527,10 +605,10 @@ int BeQuicClient::internal_request(
             header_block_[key]       = value;
         }
 
+        //For the first or the only one block.
+        set_first_range_header();
+
         spdy_quic_client_->set_store_response(true);
-
-        LOG(INFO) << "SendRequesting!" << std::endl;
-
         spdy_quic_client_->SendRequest(header_block_, body, true);
 
         LOG(INFO) << "SendRequested!" << std::endl;
@@ -576,13 +654,13 @@ int64_t BeQuicClient::seek_in_buffer(int64_t off, int whence, int64_t *target_of
     //std::unique_lock<std::mutex> lock(mutex_);
     int64_t ret = -1;
     do {
-        if (content_length_ == -1) {
+        if (file_size_ == -1) {
             ret = kBeQuicErrorCode_Not_Supported;
             break;
         }
 
         if (whence == AVSEEK_SIZE) {
-            ret = content_length_;
+            ret = file_size_;
             break;
         }
 
@@ -591,7 +669,7 @@ int64_t BeQuicClient::seek_in_buffer(int64_t off, int whence, int64_t *target_of
             break;
         }
 
-        if (content_length_ == -1 && whence == SEEK_END) {
+        if (file_size_ == -1 && whence == SEEK_END) {
             ret = kBeQuicErrorCode_Invalid_State;
             break;
         }
@@ -599,7 +677,7 @@ int64_t BeQuicClient::seek_in_buffer(int64_t off, int whence, int64_t *target_of
         if (whence == SEEK_CUR) {
             off += read_offset_;
         } else if (whence == SEEK_END) {
-            off += content_length_;
+            off += file_size_;
         } else if (whence != SEEK_SET) {
             ret = kBeQuicErrorCode_Invalid_Param;
             break;
@@ -618,6 +696,10 @@ int64_t BeQuicClient::seek_in_buffer(int64_t off, int whence, int64_t *target_of
             response_buff_.consume(consume_size);
             read_offset_ = off;
             ret = off;
+
+            if (block_manager_ != NULL) {
+                block_manager_->seek(off);
+            }
             break;
         }
 
@@ -648,35 +730,17 @@ int64_t BeQuicClient::seek_from_net(int64_t off) {
         //Drop all data in buffer.
         response_buff_.consume(response_buff_.size());
 
-        //If already disconnected, reconnect now.
-        if (!spdy_quic_client_->connected()) {
-            LOG(INFO) << "Reconnecting." << std::endl;
-
-            //Initialize quic client.
-            if (!spdy_quic_client_->Initialize()) {
-                ret = kBeQuicErrorCode_Fatal_Error;
-                LOG(ERROR) << "Failed to initialize bequic client." << std::endl;
-                break;
-            }
-
-            auto start_time = base::Time::Now();
-
-            //Reconnect.
-            if (spdy_quic_client_->Connect()) {
-                base::Time connected_time = base::Time::Now();
-                base::TimeDelta connect_time = connected_time - start_time;
-                LOG(INFO) << "Reconnect success, using " << connect_time.InMicroseconds() / 1000 << " ms." << std::endl;
-            } else {
-                LOG(ERROR) << "Reconnect failed." << std::endl;
+        //Request block.
+        if (block_manager_ != NULL) {
+            block_manager_->seek(off);
+        } else {
+            int r = 0;
+            request_range(off, -1, &r);
+            if (r != kBeQuicErrorCode_Success) {
                 break;
             }
         }
 
-        std::ostringstream os;
-        os << "bytes=" << off << "-";
-        header_block_["range"] = os.str();
-
-        spdy_quic_client_->SendRequest(header_block_, "", true);
         ret = off;
     } while (0);
     return ret;
@@ -750,7 +814,7 @@ bool BeQuicClient::is_buffer_sufficient() {
     bool ret = true;
     do {
         size_t size = response_buff_.size();
-        if (content_length_ == -1) {
+        if (file_size_ == -1) {
             //Cannot determine end of stream, so if some data exists just return true for safe.
             ret = size > 0;
             break;
@@ -761,7 +825,7 @@ bool BeQuicClient::is_buffer_sufficient() {
             break;
         }
 
-        if (content_length_ - read_offset_ < kReadBlockSize) {
+        if (file_size_ - read_offset_ < kReadBlockSize) {
             ret = true;
             break;
         }
@@ -774,6 +838,63 @@ bool BeQuicClient::is_buffer_sufficient() {
         ret = true;
     } while (0);
     return ret;
+}
+
+void BeQuicClient::set_first_range_header() {
+    if (block_size_ == 0) {
+        return;
+    }
+
+    std::ostringstream os;
+    int64_t end_offset = (block_size_ < 0 || block_size_ < kMinRequestBlockSize) ? (kDefaultRequestBlockSize - 1) : (block_size_ - 1);
+    os << "bytes=0" << "-" << end_offset;
+
+    header_block_["range"] = os.str();
+}
+
+void BeQuicClient::request_range(int64_t start, int64_t end, int *r) {
+    int ret = kBeQuicErrorCode_Success;
+    do {
+        LOG(INFO) << "request_range " << start << "-" << end << std::endl;
+
+        //If already disconnected, reconnect now.
+        if (!spdy_quic_client_->connected()) {
+            LOG(INFO) << "Reconnecting." << std::endl;
+
+            //Initialize quic client.
+            if (!spdy_quic_client_->Initialize()) {
+                ret = kBeQuicErrorCode_Fatal_Error;
+                LOG(ERROR) << "Failed to initialize bequic client." << std::endl;
+                break;
+            }
+
+            auto start_time = base::Time::Now();
+
+            //Reconnect.
+            if (spdy_quic_client_->Connect()) {
+                base::Time connected_time = base::Time::Now();
+                base::TimeDelta connect_time = connected_time - start_time;
+                LOG(INFO) << "Reconnect success, using " << connect_time.InMicroseconds() / 1000 << " ms." << std::endl;
+            } else {
+                LOG(ERROR) << "Reconnect failed." << std::endl;
+                break;
+            }
+        }
+
+        std::ostringstream os;
+        if (end > 0) {
+            os << "bytes=" << start << "-" << end;
+        } else {
+            os << "bytes=" << start << "-";
+        }
+        header_block_["range"] = os.str();
+
+        spdy_quic_client_->SendRequest(header_block_, "", true);
+    } while (0);
+
+    if (r != NULL) {
+        *r = ret;
+    }
 }
 
 }  // namespace net
