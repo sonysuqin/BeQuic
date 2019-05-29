@@ -63,6 +63,13 @@ public:
         int block_consume,
         int timeout);
 
+    int request(
+        const std::string& url,
+        const std::string& method,
+        std::vector<InternalQuicHeader> headers,
+        const std::string& body,
+        int timeout);
+
     void close();
 
     int read_buffer(unsigned char *buf, int size, int timeout);
@@ -86,7 +93,7 @@ public:
 private:
     void run_event_loop();
 
-    int internal_request(
+    int open_internal(
         const std::string& url,
         const std::string& mapped_ip,
         unsigned short mapped_port,
@@ -97,6 +104,13 @@ private:
         int ietf_draft_version,
         int handshake_version,
         int transport_version);
+
+    void request_internal(
+        const std::string& url,
+        const std::string& method,
+        std::vector<InternalQuicHeader> headers,
+        const std::string& body,
+        IntPromisePtr promise);
 
     void seek_internal(int64_t off, int whence, IntPromisePtr promise);
 
@@ -110,7 +124,7 @@ private:
 
     bool is_buffer_sufficient();
 
-    void set_first_range_header();
+    int64_t set_first_range_header();
 
     void request_range(int64_t start, int64_t end, int *r);
 

@@ -166,6 +166,57 @@ int BE_QUIC_CALL be_quic_open(
     return ret;
 }
 
+int BE_QUIC_CALL be_quic_request(
+    int handle,
+    const char *url,
+    const char *method,
+    BeQuicHeader *headers,
+    int header_num,
+    const char *body,
+    int body_size,
+    int timeout) {
+    int ret = 0;
+    do {
+        net::BeQuicClient::Ptr client = net::BeQuicClientManager::instance()->get_client(handle);
+        if (client == NULL) {
+            ret = kBeQuicErrorCode_Not_Found;
+            break;
+        }
+
+        //Check url.
+        if (url == NULL) {
+            ret = kBeQuicErrorCode_Invalid_Url;
+            break;
+        }
+
+        //Check method.
+        std::string method_str = (method == NULL) ? "GET" : std::string(method);
+        if (strncmp(method_str.c_str(), "GET", method_str.size()) != 0 && 
+            strncmp(method_str.c_str(), "POST", method_str.size()) != 0) {
+            ret = kBeQuicErrorCode_Invalid_Method;
+            break;
+        }
+
+        //Save headers.
+        std::vector<net::InternalQuicHeader> header_vec;
+        if (headers != NULL && header_num > 0) {
+            for (int i = 0; i < header_num; ++i) {
+                BeQuicHeader &header = headers[i];
+                if (header.key != NULL && header.value != NULL) {
+                    header_vec.emplace_back(header.key, header.value);
+                }
+            }
+        }
+
+        //Save body.
+        std::string body_str = (body == NULL) ? std::string("") : std::string(body, body_size);
+
+        //Request.
+        ret = client->request(url, method_str, header_vec, body_str, timeout);
+    } while (0);
+    return ret;
+}
+
 int BE_QUIC_CALL be_quic_close(int handle) {
     net::BeQuicClientManager::instance()->close_and_release_client(handle);
     return 0;

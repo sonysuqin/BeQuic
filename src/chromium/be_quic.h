@@ -54,7 +54,31 @@ BE_QUIC_API int BE_QUIC_CALL be_quic_open(
     int timeout);
 
 /**
+ *  @brief  Synchronously request an url in an existing quic session.
+ *  @param  handle              Quic session handle.
+ *  @param  url                 Quic request url.
+ *  @param  method              Quic request method, only "GET" and "POST" supported, if NULL, default to "GET".
+ *  @param  headers             Quic request headers array pointer.
+ *  @param  header_num          Quic request headers array size.
+ *  @param  body                Quic request body buffer pointer of "POST" method.
+ *  @param  body_size           Quic request body buffer size of "POST" method.
+ *  @param  timeout             If quic session not established in timeout ms, will return timeout error.
+ *  @return Error code.
+ *  @note   Once this method be called, all data of previous stream buffered will be abandoned.
+ */
+BE_QUIC_API int BE_QUIC_CALL be_quic_request(
+    int handle,
+    const char *url,
+    const char *method,
+    BeQuicHeader *headers,
+    int header_num,
+    const char *body,
+    int body_size,
+    int timeout);
+
+/**
  *  @brief  Synchronously close a quic session.
+ *  @param  handle              Quic session handle.
  *  @return Error code.
  */
 BE_QUIC_API int BE_QUIC_CALL be_quic_close(int handle);

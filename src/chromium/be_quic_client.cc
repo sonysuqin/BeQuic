@@ -101,7 +101,7 @@ int BeQuicClient::open(
         //Create promise for blocking wait.
         IntPromisePtr open_promise;
         if (timeout != 0) {
-            open_promise_.reset(new std::promise<int>);
+            open_promise_.reset(new IntPromise);
             open_promise = open_promise_;
         }
 
@@ -111,13 +111,74 @@ int BeQuicClient::open(
         //Set busy flag.
         busy_ = true;
 
-        //If won't blocking.
-        if (!open_promise_)  {
+        //If won't block.
+        if (open_promise_ == NULL) {
             break;
         }
 
         //Wait forever if timeout set to -1.
         IntFuture future = open_promise_->get_future();
+        if (timeout < 0) {
+            ret = future.get(); //Blocking.
+            break;
+        }
+
+        //Wait for certain time.
+        std::future_status status =
+            future.wait_until(std::chrono::system_clock::now() + std::chrono::milliseconds(timeout));
+        if (status == std::future_status::ready) {
+            ret = future.get();
+            break;
+        }
+
+        ret = kBeQuicErrorCode_Timeout;
+    } while (0);
+    return ret;
+}
+
+int BeQuicClient::request(
+    const std::string& url,
+    const std::string& method,
+    std::vector<InternalQuicHeader> headers,
+    const std::string& body,
+    int timeout) {
+    int ret = 0;
+    do {
+        if (!running_) {
+            ret = kBeQuicErrorCode_Invalid_State;
+            break;
+        }
+
+        if (message_loop_ == NULL) {
+            ret = kBeQuicErrorCode_Null_Pointer;
+            break;
+        }
+
+        IntPromisePtr promise;
+        if (timeout != 0) {
+            promise.reset(new IntPromise);
+        }
+
+        LOG(INFO) << "Request " << url << " with method " << method << std::endl;
+
+        message_loop_->task_runner()->PostTask(
+            FROM_HERE,
+            base::BindOnce(
+                &BeQuicClient::request_internal,
+                base::Unretained(this),
+                url,
+                method,
+                headers,
+                body,
+                promise));
+
+        //If won't block.
+        if (promise == NULL) {
+            break;
+        }
+
+        //Wait forever if timeout set to -1.
+        IntFuture future = promise->get_future();
         if (timeout < 0) {
             ret = future.get(); //Blocking.
             break;
@@ -316,7 +377,7 @@ void BeQuicClient::on_data(quic::QuicSpdyClientStream *stream, char *buf, int si
     if (!got_first_data_) {
         quic::BeQuicSpdyClientStream* bequic_stream = static_cast<quic::BeQuicSpdyClientStream*>(stream);
         file_size_          = bequic_stream->check_file_size();
-        first_data_time_    = base::Time::Now();
+        first_data_time_    = first_data_time_.is_null() ? base::Time::Now() : first_data_time_;
         got_first_data_     = true;
 
         block_manager_.reset(new BeQuicBlockManager(shared_from_this()));
@@ -390,8 +451,8 @@ void BeQuicClient::Run() {
     message_loop_   = message_loop.get();
     run_loop_       = run_loop.get();
 
-    //Internal request.
-    int ret = internal_request(
+    //Internally open.
+    int ret = open_internal(
         url_,
         mapped_ip_,
         mapped_port_,
@@ -444,7 +505,7 @@ void BeQuicClient::run_event_loop() {
     run_loop_->Run();
 }
 
-int BeQuicClient::internal_request(
+int BeQuicClient::open_internal(
     const std::string& url,
     const std::string& mapped_ip,
     unsigned short mapped_port,
@@ -580,17 +641,11 @@ int BeQuicClient::internal_request(
 
         LOG(INFO) << "Connected, using " << connect_time_ / 1000 << " ms." << std::endl;
 
+        std::string path = gurl.has_query() ? (gurl.path() + "?" + gurl.query()) : gurl.path();
         header_block_[":method"]      = method;
         header_block_[":scheme"]      = gurl.scheme();
         header_block_[":authority"]   = gurl.host();
-        std::string path;
-        if (gurl.has_query()) {
-            path = gurl.path() + "?" + gurl.query();
-        } else {
-            path = gurl.path();
-        }
         header_block_[":path"]        = path;
-        LOG(INFO) << "path: " << path << std::endl;
 
         for (size_t i = 0; i < headers.size(); ++i) {
             InternalQuicHeader &header = headers[i];
@@ -627,6 +682,76 @@ int BeQuicClient::internal_request(
         */
     } while (0);
     return ret;
+}
+
+void BeQuicClient::request_internal(
+    const std::string& url,
+    const std::string& method,
+    std::vector<InternalQuicHeader> headers,
+    const std::string& body,
+    IntPromisePtr promise) {
+    int ret = 0;
+    do {
+        if (spdy_quic_client_ == NULL) {
+            ret = kBeQuicErrorCode_Invalid_State;
+            break;
+        }
+
+        //Save parameters.
+        url_                = url;
+        method_             = method;
+        headers_            = headers;
+        body_               = body;
+
+        //Close current stream.
+        close_current_stream();
+
+        //Reset members.
+        got_first_data_     = false;
+        file_size_          = -1;
+        read_offset_        = 0;
+
+        //Drop all data in buffer.
+        response_buff_.consume(response_buff_.size());
+
+        //Reset blocks.
+        if (block_manager_ != NULL) {
+            block_manager_.reset();
+        }
+
+        //Set header block.
+        GURL gurl(url);
+        std::string path = gurl.has_query() ? (gurl.path() + "?" + gurl.query()) : gurl.path();
+
+        header_block_.clear();
+        header_block_[":method"]      = method;
+        header_block_[":scheme"]      = gurl.scheme();
+        header_block_[":authority"]   = gurl.host();
+        header_block_[":path"]        = path;
+
+        for (size_t i = 0; i < headers.size(); ++i) {
+            InternalQuicHeader &header = headers[i];
+            if (header.key.empty() || header.value.empty()) {
+                continue;
+            }  
+
+            QuicStringPiece key     = header.key;
+            QuicStringPiece value   = header.value; 
+            quic::QuicTextUtils::RemoveLeadingAndTrailingWhitespace(&key);
+            quic::QuicTextUtils::RemoveLeadingAndTrailingWhitespace(&value);
+            header_block_[key]       = value;
+        }
+
+        //For the first or the only one block.
+        int64_t end_offset = set_first_range_header();
+
+        //Request now.
+        request_range(0, end_offset, &ret);
+    } while (0);
+
+    if (promise != NULL) {
+        promise->set_value(ret);
+    }
 }
 
 void BeQuicClient::seek_internal(int64_t off, int whence, IntPromisePtr promise) {
@@ -840,9 +965,9 @@ bool BeQuicClient::is_buffer_sufficient() {
     return ret;
 }
 
-void BeQuicClient::set_first_range_header() {
+int64_t BeQuicClient::set_first_range_header() {
     if (block_size_ == 0) {
-        return;
+        return -1;
     }
 
     std::ostringstream os;
@@ -850,6 +975,7 @@ void BeQuicClient::set_first_range_header() {
     os << "bytes=0" << "-" << end_offset;
 
     header_block_["range"] = os.str();
+    return end_offset;
 }
 
 void BeQuicClient::request_range(int64_t start, int64_t end, int *r) {
